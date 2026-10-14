@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+/*
+ * Astra design tokens (foundation).
+ * Base surface is dark charcoal; interaction accent is restrained indigo.
+ * See vault note "Design & UX" for the full design language.
+ */
+@theme {
+  --color-surface-0: #0a0a0b;
+  --color-surface-1: #121214;
+  --color-surface-2: #1a1a1e;
+  --color-border-subtle: #26262c;
+  --color-accent: #6366f1;
+  --color-accent-hover: #818cf8;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}

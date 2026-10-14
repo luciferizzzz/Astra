@@ -1,0 +1,14 @@
+# Normalize line endings to LF in the repository.
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+
+# Lockfiles
+package-lock.json text eol=lf
+Cargo.lock text eol=lf
