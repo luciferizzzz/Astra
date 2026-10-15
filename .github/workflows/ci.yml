@@ -5,6 +5,11 @@
 # the gates that actually exist today, on the platform Astra ships for. It is
 # not yet the OS matrix (NFR-012) or the network-blocked run (NFR-011) — those
 # are named in the PRD as later additions, not as MVP blockers.
+#
+# Scope: this workflow is a GATE, not a distribution channel, and uploads no
+# artifacts. Distributable builds belong in release.yml, which attaches the
+# installer to a GitHub Release on version tags. See the note on the packaging
+# step below for the storage arithmetic behind that split.
 name: CI
 
 on:
@@ -21,7 +26,7 @@ concurrency:
 
 jobs:
   verify:
-    name: typecheck / test / build / e2e / package
+    name: typecheck / test / e2e / package
     # Windows only, because Windows is the only platform Astra supports for
     # release today. Widening this to a matrix is a Phase 1 decision.
     runs-on: windows-latest
@@ -44,10 +49,12 @@ jobs:
       - name: Unit tests
         run: npm run test
 
-      - name: Build
-        run: npm run build
-
       # Drives the real Electron shell, not a browser pointed at a dev server.
+      #
+      # `npm run test:e2e` bundles before running Playwright, so this step also
+      # proves the main, preload and renderer bundles build. A separate
+      # `npm run build` here would be a third full Vite build per run (test:e2e
+      # and package each build one) for no additional signal.
       #
       # Deliberately BLOCKING. The first CI run is itself the experiment: it
       # answers whether GUI automation is reliable on a hosted runner — the one
@@ -58,20 +65,24 @@ jobs:
         run: npm run test:e2e
 
       # PRD RISK-005 asks for a packaging smoke test in CI. This produces the
-      # unpacked Windows build; it does not yet run the installer.
+      # unpacked Windows build; it does not run the installer.
+      #
+      # Deliberately no upload step. `release/win-unpacked` measures 368 MB
+      # (compressed: 150.8 MB), and Actions artifact storage on the free plan is
+      # 500 MB shared with GitHub Packages — a few runs would exhaust it. GitHub
+      # Releases, by contrast, document "no limit on the total size of a
+      # release, nor bandwidth usage". Distribution therefore belongs in
+      # release.yml; this job stays a gate that costs no storage at all.
       - name: Packaging smoke test
         run: npm run package
 
-      - name: Upload packaged build
-        uses: actions/upload-artifact@v4
-        with:
-          name: astra-win-unpacked
-          path: release/win-unpacked
-          retention-days: 7
-
+  # Runs on Linux: it only needs `npm ci` and `npm audit`, launches no Electron
+  # window and exercises no Windows-specific behavior. Faster to schedule and
+  # cheaper than a Windows runner, and it leaves Windows minutes for the job
+  # that genuinely needs them. Not yet verified on a Linux runner.
   dependency-audit:
     name: dependency audit (SEC-006)
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
