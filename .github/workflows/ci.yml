@@ -1,10 +1,10 @@
 # CI skeleton — PRD §13 lists this alongside the repo scaffold as a Phase 0
-# prerequisite.
+# prerequisite ("Prerequisites: Repo scaffold, CI skeleton").
 #
-# PRD §15.1 calls CI optional for the MVP, so this is deliberately a skeleton:
+# PRD §10.5 calls CI optional for the MVP, so this is deliberately a skeleton:
 # the gates that actually exist today, on the platform Astra ships for. It is
-# not yet the OS matrix (§15.3) or the network-blocked run (§15.2) — those are
-# named in the PRD as later additions, not as MVP blockers.
+# not yet the OS matrix (NFR-012) or the network-blocked run (NFR-011) — those
+# are named in the PRD as later additions, not as MVP blockers.
 name: CI
 
 on:
@@ -48,9 +48,12 @@ jobs:
         run: npm run build
 
       # Drives the real Electron shell, not a browser pointed at a dev server.
-      # Known risk: GUI automation on a hosted runner is the least reliable
-      # step here (PRD RISK-005). If it proves flaky it should be split into
-      # its own job rather than silently removed.
+      #
+      # Deliberately BLOCKING. The first CI run is itself the experiment: it
+      # answers whether GUI automation is reliable on a hosted runner — the one
+      # thing local green runs cannot prove (PRD RISK-005). Decided 2026-10-15:
+      # run it once and see, rather than pre-emptively weakening the gate. If it
+      # does prove flaky, split it into its own job; do not silently delete it.
       - name: End-to-end tests
         run: npm run test:e2e
 
