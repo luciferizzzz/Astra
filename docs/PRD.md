@@ -3,6 +3,7 @@ title: PRD - Astra
 type: prd
 author: Project001
 date: 2026-10-14
+updated: 2026-10-15
 status: Draft
 priority: P0
 tags:
@@ -11,7 +12,7 @@ tags:
   - desktop
   - visual-web-designer
   - local-first
-  - tauri
+  - electron
 aliases:
   - PRD-Astra
   - Astra
@@ -27,14 +28,14 @@ aliases:
 > files. There is no account, no mandatory cloud, and no proprietary output format.
 > Source code remains readable, portable, and version-controllable.
 
-> [!warning] Document Status - Implementation Has Not Started
+> [!warning] Document Status - Specification Only (No Application Logic Implemented)
 >
-> This document is a **specification only**. No part of Astra has been built,
-> tested, or shipped. The source repository (`D:\code-web\Astra`) currently contains
-> no application code, no dependencies, and no configuration files. Every requirement
-> below describes intended behavior, not a delivered feature. All performance figures,
-> effort estimates, and success-metric targets are **provisional** unless explicitly
-> marked as measured.
+> This document is a **specification only**. No application logic has been built,
+> tested, or shipped. The source repository (`D:\code-web\Astra`) contains, at most, a
+> project scaffold (build tooling and dependencies) and no implemented features. Every
+> requirement below describes intended behavior, not a delivered feature. All performance
+> figures, effort estimates, and success-metric targets are **provisional** unless
+> explicitly marked as measured.
 >
 > No "supplied Astra visual reference" image was found in the workspace. The UI/UX
 > section therefore specifies the design direction in prose (Section 9). If a
@@ -56,7 +57,7 @@ aliases:
 | Status | Specification only - implementation not started |
 | Owner | Project001 |
 | Reviewers | Product, Architecture, UX, Security, QA (to be assigned) |
-| Related docs | `PRD-Visual-Web-Builder (Astra).md`, `PRD-Local-Visual-Web-Builder.md` (superseded adjacent concepts; this document defines the Tauri-based sibling product) |
+| Related docs | `PRD-Visual-Web-Builder (Astra).md`, `PRD-Local-Visual-Web-Builder.md` (superseded adjacent concepts; this document defines the Electron-based sibling product) |
 
 ### How to read requirement IDs
 
@@ -101,6 +102,11 @@ browser and any code editor without Astra.
 The product is local-first by construction: no account, no telemetry by default, and
 all core features work offline. Website previews are sandboxed so that untrusted
 project code cannot reach privileged desktop APIs or the filesystem.
+
+Astra is implemented as an **Electron** desktop application: a Node.js main process
+hosting controlled project services, a React + TypeScript renderer for the UI, and a
+narrow `contextBridge` between them. Electron is an implementation choice, not Astra's
+product differentiator (Section 10; ADR-001 in Section 10.7).
 
 The central engineering risk is **synchronization**: keeping a visual document model
 and real source files consistent without corrupting formatting, comments, or unsupported
@@ -407,12 +413,12 @@ Format per requirement: **ID - priority** - description; **Story**; **Acceptance
 ### A. Desktop Application
 
 #### FR-A01 - Native application window (P0)
-Astra runs as a native Windows desktop window (Tauri 2 webview), not a browser tab.
+Astra runs as a native Windows desktop window hosted by Electron, not a browser tab.
 - **Story:** As a user, I want a real desktop app, so that it integrates with my OS.
 - **Acceptance:** Given the installed app, when launched, then a single application
   window appears with a native title bar, resizes smoothly, and has OS min/max/close
   controls; no browser chrome is present.
-- **Dependencies:** Tauri shell (Section 10), build pipeline.
+- **Dependencies:** Electron shell (Section 10), build pipeline.
 - **Limitations:** Windows-first; macOS/Linux later.
 
 #### FR-A02 - Application menu and window controls (P0)
@@ -469,7 +475,7 @@ Ship an installable, code-signed-or-clearly-unsigned Windows package.
 - **Story:** As a user, I want to install Astra without a toolchain.
 - **Acceptance:** Given a release build, when I run the installer on a clean Windows 10/11
   machine, then Astra installs, launches offline, and opens a project with no dev tools present.
-- **Dependencies:** Tauri bundler (MSI/NSIS), CI build.
+- **Dependencies:** Electron packaging (Electron Forge or electron-builder; NSIS/Squirrel), CI build.
 - **Limitations:** Code signing requires a certificate (`OQ-011`); unsigned builds may
   trigger SmartScreen warnings.
 
@@ -506,7 +512,7 @@ See FR-A03. Explorer is rooted at the chosen folder and never navigates above it
   watcher fires, then Astra compares content hash to its last-known hash; if the document
   is clean it reloads (with a subtle toast), and if it is dirty it raises a conflict per
   FR-G-Conflict without writing anything automatically.
-- **Dependencies:** File watcher (`notify` via Rust), hashing.
+- **Dependencies:** File watcher (Node `fs.watch` in the main process), hashing.
 - **Limitations:** Watcher events are OS-dependent and may coalesce; Astra debounces and
   falls back to a hash check.
 
@@ -1012,9 +1018,12 @@ All accessibility findings are **advisory**. Astra must not silently rewrite pro
 ## 8. Non-Functional Requirements
 
 All numeric targets below are **provisional** and must be measured before being treated as
-commitments (`ASM-001`). Where a target exists, the measurement method is stated. Targets
-are chosen for a mid-range 2024-era Windows laptop (e.g. 4-core CPU, 16 GB RAM, SSD) unless
-noted.
+commitments (`ASM-001`). Where a target exists, the measurement method is stated. Targets are
+chosen for a mid-range Windows laptop (e.g. 4-core CPU, 16 GB RAM, SSD) and must also be validated
+on modest hardware (4-core CPU, 8 GB RAM), given Electron's multi-process model. Because Electron
+bundles Chromium and runs multiple processes, memory and distribution-size figures are expected to
+be materially higher than for a lighter system-webview shell; they are stated as targets to be
+measured, not as promises.
 
 #### NFR-001 - Startup time (provisional)
 Cold start to an interactive welcome window: **target <= 3 s** (P95 over 20 runs).
@@ -1031,8 +1040,11 @@ Click-to-selection and property-edit-to-canvas-update: **target <= 100 ms** loca
 Measurement: performance marks around selection and edit pipelines.
 
 #### NFR-004 - Memory usage (provisional)
-Idle (welcome screen): **target <= 200 MB RSS**. Medium project open: **target <= 600 MB RSS**.
-Measurement: OS process metrics sampled during scripted scenarios.
+Measured across the Electron process tree (main + renderer(s) + GPU/utility helpers): idle
+(welcome screen) **target <= 350 MB total RSS**; a medium project open with the preview loaded
+**target <= 900 MB total RSS**. Measurement: sum of all app process metrics sampled during scripted
+scenarios on both 16 GB and 8 GB machines; report a per-process breakdown. These provisional
+ceilings are intentionally looser than a system-webview shell to reflect Electron's process model.
 
 #### NFR-005 - Large-tree handling (provisional)
 Editing within a document of up to ~5,000 HTML nodes: no operation blocks the UI > 200 ms.
@@ -1058,16 +1070,17 @@ flows: open project, select element, edit a property, save. Measurement: contras
 
 #### NFR-010 - Maintainability
 Modular boundaries (Section 11) with no cyclic dependencies between core modules; TypeScript
-strict mode; Rust clippy clean; documented public interfaces. Measurement: dependency-graph lint,
-typecheck, lint gates in CI.
+strict mode; lint clean (main, preload, renderer); documented public interfaces. Measurement:
+dependency-graph lint, typecheck, lint gates in CI.
 
 #### NFR-011 - Offline coverage
 100% of MVP acceptance tests pass with networking disabled (except tests explicitly marked
 network-optional). Measurement: CI job that runs the suite with network blocked.
 
 #### NFR-012 - Compatibility
-Support Windows 10 (1809+) and Windows 11; the rendered preview must track the WebView2/Edge
-engine available on the user's machine. Measurement: matrix of OS versions in CI/manual.
+Support Windows 10 (21H2+) and Windows 11; the rendered preview uses the Chromium engine bundled
+with the application's pinned Electron version (not the machine's system webview). Measurement:
+matrix of OS versions in CI/manual; the pinned Electron/Chromium version is recorded per release.
 
 #### NFR-013 - Data integrity under external change
 External modification while Astra is open never results in silent data loss. Measurement:
@@ -1082,6 +1095,23 @@ normal use shows no egress.
 Files up to 5 MB open in the code editor without freezing; larger files open with a warning
 and a read-only fallback if editing latency is unacceptable. Measurement: timed open of
 generated large files.
+
+#### NFR-016 - Preview refresh latency (provisional)
+After a settled source edit, the preview reflects the change within **target <= 400 ms**
+(consistent with FR-F05), P95, for a medium project. Measurement: performance marks from the
+debounced edit to the preview paint.
+
+#### NFR-017 - Renderer stability
+No renderer process crash in a 2-hour scripted session; if a renderer does crash, the app
+recovers UI state without data loss and without restarting the main process. Measurement:
+automated soak runs plus a forced-crash injection test (`TEST-032`).
+
+#### NFR-018 - Distribution and install size (provisional, measured not promised)
+Electron ships a Chromium runtime, so artifacts are large. **Measure** rather than target:
+record the installed footprint (MB) and installer size for each release on Windows x64 and publish
+the numbers. A provisional planning budget of "order of hundreds of MB installed" is recorded for
+estimating only; it must not be quoted to users as a guarantee. Measurement: file-size accounting on
+a clean install.
 
 ---
 
@@ -1098,7 +1128,7 @@ generated large files.
 
 - Professional desktop development environment, dense and information-rich, not a marketing page.
 - **Dark charcoal** base (e.g. near-neutral `#1E1E1E`-ish surfaces with layered elevation),
-  restrained **blue/indigo** interaction accents, unless a reference specifies otherwise.
+  restrained **burgundy and gold** interaction accents, unless a reference specifies otherwise.
 - Clear typographic hierarchy, consistent spacing scale, subtle 1 px borders, minimal
   decorative effects. No excessive gradients, glassmorphism, neon, giant rounded cards, or
   generic "AI dashboard" styling.
@@ -1196,46 +1226,158 @@ labels for icon-only buttons, and respect for reduced-motion. Target NFR-009.
 
 ## 10. Technical Stack and Rationale
 
-### 10.1 Proposed stack (evaluated)
+> [!note] Framework decision
+> The desktop framework is **Electron** (ADR-001, Section 10.7). Electron is an implementation
+> choice, not Astra's product differentiator - the differentiator remains visual editing of real,
+> portable source code (Section 2). This section replaces the earlier Tauri/Rust plan.
+
+### 10.1 Stack (approved baseline)
 
 | Area | Choice | Required for MVP | Why | Trade-offs / security |
 |---|---|---|---|---|
-| Desktop framework | **Tauri 2** | Yes | Small binaries, Rust backend, per-window capability model that enables preview isolation, no bundled Chromium (uses WebView2). | Depends on system WebView2; Rust learning curve; some plugins less mature than Electron. |
+| Desktop framework | **Electron** | Yes | Bundles a known Chromium version for consistent rendering and mature automation; Node.js main process for filesystem work; large, stable ecosystem. | Larger distribution size and higher memory than a system-webview shell; security depends on correct main/preload/renderer separation (Section 14). |
 | Frontend | **React + TypeScript** | Yes | Mature ecosystem for complex editor UIs; strong typing reduces model bugs. | Virtual DOM overhead for large trees (mitigated by virtualization/memoization). |
-| Native backend | **Rust** | Yes | Filesystem, watcher, atomic writes, hashing, sandbox-scoped commands with memory safety. | More implementation effort than Node; must design a clean IPC surface. |
-| Build tool | **Vite** | Yes | Fast HMR and TS support; first-class Tauri integration. | None material. |
+| Application main process | **Node.js + TypeScript** | Yes | Filesystem, watcher, atomic writes, hashing, dialogs, and IPC validation in a privileged, single place. | Privileged context; every IPC request must be validated and Node APIs must never reach untrusted content. |
+| Renderer bridge | **preload script + `contextBridge`** | Yes | Exposes a small, explicit, typed API while keeping `contextIsolation` on. | Any channel added here widens the trust surface; keep it minimal and audited. |
+| Build tool / dev server | **Vite** with an Electron integration (e.g. `electron-vite` or an equivalent Vite plugin) | Yes | Fast HMR and TS support for the renderer; simple main/preload bundling. | Keep `base`/asset paths Electron-compatible (loading from `file://`). |
+| Packaging | **Electron Forge** or **electron-builder** | Yes | Both produce Windows installers/portables for standard projects without a C++ toolchain of our own. | Signing/SmartScreen handling; large installer size (Section 10.6). |
 | Code editor | **Monaco Editor** | Yes | Proven, feature-rich (highlighting, find, folding), offline-capable when bundled locally. | Large bundle; must be served locally (not from CDN) to honor offline. |
 | HTML parser | **parse5** | Yes | Spec-compliant parsing, source location info for surgical patching. | Must preserve raw text via location offsets; parse5 alone does not round-trip formatting, so a patch layer is required. |
 | CSS parser | **PostCSS** | Yes | AST with `raws` preservation and source offsets; broad plugin ecosystem. | Formatting fidelity requires care; complex at-rules need explicit handling. |
 | Drag-and-drop | **dnd-kit** | Yes (Phase 4) | Accessible, modern, React-friendly; works for palette and reorder. | Pointer/keyboard parity needs explicit testing. |
 | State management | **Zustand** | Yes | Minimal, non-opinionated, avoids prop-drilling; good for editor state. | Not a full framework; discipline required to keep slices modular. |
-| Styling | **Tailwind CSS** | Yes | Fast, consistent design system; avoids bespoke CSS sprawl in the shell. | Must be scoped so it never leaks into the previewed site; some inline-class verbosity. |
-| Unit testing | **Vitest** | Yes | Fast, Vite-native, TS-friendly. | DOM-level sync tests need jsdom/happy-dom plus parser fixtures. |
-| E2E testing | **Playwright** | Yes | Can drive the webview UI; strong for cross-flow testing. | Tauri webview automation has gaps; may require a test harness serving the UI in a browser for the majority of cases (see Section 15). |
+| Styling | **Tailwind CSS (optional)** | Optional | Fast, consistent design system for the shell if adopted. | Include only if it clearly helps; must be scoped so it never leaks into the previewed site. |
+| Unit / integration testing | **Vitest** | Yes | Fast, Vite-native, TS-friendly. | DOM-level sync tests need jsdom/happy-dom plus parser fixtures. |
+| E2E / app testing | **Playwright** (Electron support) | Yes | Can launch and drive the real Electron app across main/preload/renderer/preview; strong for cross-flow testing. | OS-level behaviors (installer, native dialogs, SmartScreen) still need manual verification (Section 15). |
 
-### 10.2 Recommended additions / candidate substitutions
+### 10.2 Why Electron
 
-- **File watching:** Rust `notify` crate (de-facto standard) for external change detection.
-- **Hashing:** `blake3` or `sha2` for content hashes used in sync/conflict logic.
-- **Diffing:** a JS/Rust diff library (e.g. `diff`/`similar`) for the Compare view (FR-G04).
-- **HTML sanitization (preview only):** a vetted sanitizer (e.g. DOMPurify) for any place Astra
-  injects untrusted strings into Astra's own UI (never as a substitute for sandboxing).
-- **Alternative considered - Electron:** rejected as the default because bundling Chromium
-  increases size and memory, and the process model makes strict preview isolation more work;
-  however Electron offers more mature automation tooling. If Tauri's webview automation proves
-  too limited for the E2E strategy, revisit (`OQ-013`).
-- **Database:** **None.** No requirement justifies one. Project state lives in files; app
-  settings live in a small config file. (`ASM-002`)
+Astra's UI is a code-editor-class application: a large React tree (canvas, layer tree, inspector,
+explorer), an embedded Monaco editor, and long-lived local state. Electron aligns with that shape:
 
-### 10.3 Security implications of stack choices
+- **Chromium renderer:** one predictable, up-to-date engine renders both the project preview and
+  the app UI, independent of whichever system webview happens to be installed on the machine.
+- **Node.js main process:** first-class filesystem, process, and dialog APIs support the controlled
+  project services (Section 11.6) without a second implementation language or a cross-language bridge.
+- **One language and ecosystem:** TypeScript on both sides of IPC reduces serialization bugs and
+  keeps a single dependency model (`npm` only).
+- **Mature tooling:** packaging (Electron Forge / electron-builder) and automation (Playwright) are
+  well-established for Electron.
 
-- Tauri's **capability/permission system** is the backbone of least privilege: only the main
-  window receives filesystem commands, and only scoped to the active project root.
-- The **preview window/webview** is granted **no** Tauri commands (Section 14).
-- Monaco, parsers, and Tailwind all run in the **main app context** and are treated as
-  trusted code; the **project code** is treated as untrusted and lives only in the sandbox.
-- All dependencies are pinned and audited (`cargo audit`, `npm audit`); the dependency set is
-  deliberately small.
+**Trade-offs (explicit).**
+
+| Dimension | Electron consequence | Mitigation / note |
+|---|---|---|
+| Memory | Each renderer is a Chromium process; idle and per-view memory exceed a system-webview shell. | Fewer, reused renderers; lazy-initialize the preview; unload unused views; measurable targets in `NFR-004` (provisional). |
+| Bundle / distribution size | Ships a Chromium runtime, so installers are large (order of hundreds of MB). | Accepted trade-off; measured, not promised (Section 10.6, `NFR-018`). |
+| Startup time | Cold start includes Electron/Chromium initialization. | Defer non-critical work until after first paint; target in `NFR-001` (provisional). |
+| Security | The main process is powerful; a misconfiguration can expose privileges to project code. | Enforced process separation and hardened settings (Section 14); the preview is isolated from privileged APIs. |
+
+These are **trade-offs, not defects**. They are accepted because Astra is a large local desktop tool
+where renderer consistency and tooling maturity matter more than a minimal binary. Electron is an
+implementation detail; the local-first, no-account, offline, source-ownership guarantees (Sections 2
+and 14) are unchanged.
+
+### 10.3 Three different kinds of "building" (do not conflate)
+
+1. **Frontend development** - Vite bundles React/TypeScript and the app UI. Requires only Node.js and
+   the project's npm dependencies; no native compiler.
+2. **Application packaging** - bundling the app together with the Electron runtime into a Windows
+   installer/portable. Standard projects use the **prebuilt Electron binary** downloaded by
+   npm/Electron Forge; the developer does **not** compile Electron or Chromium.
+3. **Native dependency compilation** - some npm packages are native C/C++ addons. If a package ships
+   **prebuilt binaries for the target Electron/Node ABI**, no compiler is needed. If it must be built
+   from source (node-gyp), it may require **additional build tools**, which on Windows can include the
+   Microsoft C++ Build Tools and, depending on the dependency, the Windows SDK.
+
+> [!important] Accuracy note on toolchains
+> Electron does **not** categorically eliminate the need for the Microsoft C++ Build Tools or the
+> Windows SDK. For a standard project whose dependencies ship prebuilt binaries, neither is normally
+> required. Requirements depend entirely on the chosen dependencies and build configuration. Any
+> statement about which tools are or are not needed must be confirmed by actually attempting the
+> build on the target machine, never assumed.
+
+Astra's MVP dependency set is deliberately chosen to avoid native addons where practical
+(Section 10.4). If a future dependency needs native compilation, that cost is evaluated then.
+
+### 10.4 Additional libraries (each with a stated responsibility)
+
+- **File watching:** Node's built-in `fs.watch` for the project root, with debouncing and a content
+  hash as the source of truth (watcher events are advisory and OS-dependent; FR-B05). A library such
+  as `chokidar` may be adopted only if `fs.watch` proves insufficient on Windows; if adopted, it must
+  be justified and audited.
+- **Hashing:** Node's built-in `node:crypto` (e.g. SHA-256) for content hashes used in sync/conflict
+  logic.
+- **Diffing:** a small JS diff library (e.g. `diff`) for the Compare view (FR-G04).
+- **HTML sanitization (Astra's own UI only):** a vetted sanitizer such as DOMPurify for any place
+  Astra injects untrusted strings into Astra's **own** UI; this is defense-in-depth and never a
+  substitute for sandboxing the preview.
+- **Database:** **None.** No requirement justifies one. Project state lives in files; app settings
+  live in a small config file (`ASM-002`).
+
+### 10.5 Development and build workflow (Windows)
+
+Proposed npm scripts. These names are proposals; the chosen tooling must support them and their
+actual behavior must be defined once the scaffold is finalized.
+
+| Script | Purpose | Notes |
+|---|---|---|
+| `npm run dev` | Launch Electron in development with the Vite dev server and renderer HMR. | Does not package. |
+| `npm run build` | Type-check and build the frontend bundles (renderer + main + preload). | Produces build output, not an installer. |
+| `npm run package` | Package the app into a runnable (unpacked) directory. | Electron Forge `package` / electron-builder `--dir`. |
+| `npm run make` | Produce the Windows distributable(s): installer and/or portable (Section 10.6). | Electron Forge `make` / electron-builder `--win`. |
+| `npm test` / `npm run test:e2e` | Unit/integration and end-to-end tests (Section 15). | |
+| `npm run lint` / `npm run typecheck` | Static checks. | |
+
+Ordered stages: **develop -> build frontend -> package -> make installer -> sign/publish.** A
+developer can run and test the app with only Node.js installed; producing installers is a separate
+step that may additionally download packaging tools.
+
+**CI (optional).** A GitHub Actions workflow (Windows runner) can lint, test, package, and publish
+Windows artifacts. Hosted Windows runners provide build tooling without requiring the developer to
+install a full toolchain locally, but this is **not a guarantee** that every native dependency will
+build without additional tools. CI is **not mandatory for the MVP**; it becomes valuable once
+packaging and releases stabilize.
+
+### 10.6 Packaging, updates, and distribution
+
+- **Target:** Windows x64, packaged with Electron Forge or electron-builder.
+- **Distribution options:** an installer (e.g. NSIS or Squirrel) and, where supported, a portable
+  build. The exact set is an open decision once the packaging tool is fixed.
+- **Versioning:** the application version is tracked in `package.json` and surfaced in the About UI.
+- **Release artifacts:** the installer/portable plus a checksum manifest. Do not publish promised
+  sizes until measured (Section 10.3; estimates must not become promises).
+- **Code signing:** desirable to reduce SmartScreen friction; requires a certificate and is an open
+  question (`OQ-011`). Unsigned builds must be documented as such.
+- **Updates:** auto-update (e.g. via `electron-updater`) is **optional and opt-in**; it must be
+  described together with its security implications (signature verification, transport integrity) and
+  must never become a hidden egress that undermines the local-first posture (FR-K03, SEC-010,
+  SEC-021).
+- **Dependency / vulnerability management:** minimal pinned dependencies, `npm audit` (and, where
+  applicable, `npm audit signatures`) in CI, review before adding dependencies, and no remote asset
+  loading (Section 14).
+- **Offline operation:** after installation the app must run fully offline; no core flow may require
+  network access (FR-K01, FR-K06).
+
+### 10.7 Architecture Decision Record
+
+**ADR-001 - Desktop framework: Electron**
+
+- **Decision:** Electron is the approved desktop framework for Astra.
+- **Status:** Accepted.
+- **Context:** The team evaluated desktop implementation options for a local-first visual web
+  designer and selected Electron, aligning the desktop app with the TypeScript/React ecosystem and
+  reducing dependence on a Rust-specific development workflow.
+- **Rationale:** JavaScript/TypeScript ecosystem alignment, straightforward React integration, mature
+  desktop capabilities (windows, dialogs, filesystem, packaging), and a uniform dependency and
+  tooling model.
+- **Trade-offs:** larger application distribution size and potentially higher memory usage compared
+  with lighter system-webview alternatives.
+- **Consequences:** a main/preload/renderer separation, Electron-specific security requirements
+  (Section 14), and an Electron-based packaging and testing workflow (Sections 10.5, 10.6, 15).
+- **Reconsideration criteria:** revisit the framework only if measured performance, security,
+  maintenance, or distribution requirements cannot reasonably be met (`OQ-013` covers the E2E tooling
+  question). No formal benchmark study was conducted to reach this decision.
 
 ---
 
@@ -1245,9 +1387,9 @@ labels for icon-only buttons, and respect for reduced-motion. Target NFR-009.
 
 | # | Module | Responsibility | Depends on |
 |---|---|---|---|
-| 1 | Desktop Shell | Window lifecycle, menus, IPC surface, capability config, settings. | OS, Tauri |
+| 1 | Desktop Shell | Electron main process: window lifecycle, menus, IPC surface, IPC validation, settings. | OS, Electron |
 | 2 | Project Manager | Open/close project, entry detection, project graph (pages ↔ assets), recent list. | 3 Filesystem Adapter |
-| 3 | Filesystem Adapter | Scoped read/write/list/watch, hashing, atomic writes, backups, error mapping. | Rust fs, watcher |
+| 3 | Filesystem Adapter | Scoped read/write/list/watch, hashing, atomic writes, backups, error mapping. | Node fs (main process), watcher |
 | 4 | HTML Parser | Parse HTML to AST with source anchors; re-emit ranges; report syntax issues. | parse5 |
 | 5 | CSS Parser | Parse CSS to AST with raws/source; media queries; cascade inputs. | PostCSS |
 | 6 | Internal Document Model | Addressed, diffable projection; node identity; edit operations; dirty tracking. | 4, 5 |
@@ -1263,7 +1405,51 @@ labels for icon-only buttons, and respect for reduced-motion. Target NFR-009.
 | 16 | Design Token Manager | Token discovery (MVP), token editing (P1). | 5, 6 |
 | 17 | Accessibility Analyzer | Advisory checks over the model; findings list. | 6 |
 
-### 11.2 Layered dependency direction
+### 11.2 Application process architecture (Electron)
+
+Electron runs multiple processes. Astra assigns each a clear trust level and API surface.
+
+| Layer | Process | Trust | Responsibilities | Must not |
+|---|---|---|---|---|
+| Main | Electron main (Node.js) | Privileged / trusted | App lifecycle, window and menu management, native dialogs, project-root tracking, the controlled filesystem service, IPC request validation, settings. | Render untrusted project content. |
+| Preload | Per-renderer preload | Trusted bridge, minimal | Expose a small, explicit, typed API via `contextBridge`; translate calls to vetted IPC channels only. | Expose `ipcRenderer`, `require`, `process`, or arbitrary channel names. |
+| Renderer (UI) | Chromium renderer | Trusted (Astra's own UI) | React UI: canvas host, layer tree, inspector, explorer, Monaco, state (Zustand). | Receive Node APIs. Runs with `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`. |
+| Preview | Isolated renderer / nested view | **Untrusted** | Render the user's project HTML/CSS/JS. | Access IPC/preload/main, navigate freely, open windows, or touch the filesystem. |
+
+```text
+  +--------------------------------------------------------------+
+  |                   Electron Main (Node.js)                    |
+  |  lifecycle | windows | menus | dialogs | settings            |
+  |  filesystem service (scoped)   |   IPC request validation    |
+  +-------------------^-----------------------------^------------+
+                      |  ipcMain.handle (validated) |
+        +-------------+--------------+              |
+        |                            |              |
+  +-----v-------------+   +----------v-----------+  |
+  |  Preload (UI)     |   |  Preload (Preview)   |  |
+  |  contextBridge    |   |  minimal / none      |  |
+  +-----^-------------+   +----------^-----------+  |
+        |                            |              |
+  +-----v-------------+   +----------v-----------+  |
+  |  Renderer: Astra  |   |  Preview renderer    |  |
+  |  UI (React)       |   |  (untrusted project) |  |
+  +-------------------+   +----------------------+  |
+        ^                                            |
+        |  validated postMessage (selection/overlay) |
+        +--------------------------------------------+
+```
+
+Trust boundaries:
+
+1. **Main <-> Renderer** (privileged vs UI): every message crossing into main is validated (channel
+   allowlist, payload schema, project-root containment).
+2. **Astra UI <-> Preview** (trusted UI vs untrusted project): communication uses a validated,
+   versioned postMessage protocol; the preview receives no privileged channel.
+3. **App <-> Filesystem:** only the main-process filesystem service touches disk, scoped to the
+   active project root (Section 11.6).
+4. **App <-> Network:** off by default for project resources (FR-K04); no egress on core paths.
+
+### 11.3 Layered dependency direction
 
 ```text
             +---------------------------------------------------+
@@ -1302,7 +1488,7 @@ labels for icon-only buttons, and respect for reduced-motion. Target NFR-009.
 Dependencies point **downward and inward** (UI -> model -> parsers/sync -> filesystem).
 No core module depends on a UI module. This keeps parsers and sync testable in isolation.
 
-### 11.3 Data flow
+### 11.4 Data flow
 
 **Read path (open project):**
 
@@ -1336,7 +1522,7 @@ Watcher event -> FS Adapter hashes file -> compare to last-known hash
   -> dirty doc: conflict prompt (no auto-write)
 ```
 
-### 11.4 Error-handling strategy
+### 11.5 Error-handling strategy
 
 - **Never destructive on error:** parser failures, save failures, and conflicts must leave the
   on-disk file valid and the in-memory buffer recoverable.
@@ -1347,37 +1533,67 @@ Watcher event -> FS Adapter hashes file -> compare to last-known hash
 - **Fallbacks:** parse failure -> keep last-good render; save failure -> keep dirty buffer and
   offer retry/Save-As; unsupported construct -> read-only, never rewrite.
 
-### 11.5 Filesystem permission boundaries
+### 11.6 Filesystem and project management (Electron main process)
 
-- All fs operations occur in the **main window context only**, through a Rust command surface
-  that: (a) accepts a project handle issued on open; (b) canonicalizes every path;
-  (c) verifies the canonical path is inside the project root; (d) rejects `..` traversal and
-  symlink escapes; (e) writes only via atomic temp+rename within the same root.
-- The **preview context** receives no fs commands.
-- `.astra/` holds only non-essential metadata and is optional to the project's validity.
+The renderer never touches the filesystem directly. All disk access is a **controlled service in the
+Electron main process**, invoked over validated IPC.
 
-### 11.6 Preview sandbox strategy (see also Section 14)
+- **Folder selection:** a native dialog (user gesture) yields a **project root**.
+- **Project-root tracking:** the main process stores the canonical root and issues a project handle;
+  every operation requires that handle.
+- **Allowlisted operations:** read, list, stat, watch, write, create, rename, delete - each a named,
+  typed IPC handler. No generic "read any path", "write any path", or "exec" channel exists.
+- **Safe path handling:** canonicalize every path; verify containment inside the project root; reject
+  `..` traversal, symlink escapes, and non-UTF-8/odd names gracefully.
+- **Limits:** enforce sensible file-size and operation limits; refuse to open or overwrite beyond them.
+- **Atomic / recoverable saves:** write to a temp file in the same directory, fsync, atomically rename
+  over the target, and record a backup in `.astra/backups/` (FR-G08). On failure the original stays
+  intact.
+- **Externally changed / moved / deleted files:** detected via watcher + content hash and reconciled
+  per FR-B05/FR-G02 (clean reload vs. conflict prompt); never silently overwritten.
+- **Destructive operations:** require explicit confirmation; nothing is deleted silently.
+- **Preview:** receives **no** filesystem capability; project assets reach it only via a scoped,
+  read-only mechanism (Section 11.7).
+- `.astra/` holds only non-essential metadata and remains optional to the project's validity.
 
-- Preview is rendered in a **dedicated WebView window** (or, if a single window is required,
-  an iframe with `sandbox="allow-scripts"` and **no** `allow-same-origin`) whose Tauri
-  capability set contains **no** privileged commands.
-- The preview is **not** granted Tauri IPC. If `window.__TAURI__` is present, it is stripped/
-  unavailable in that context; the strategy is validated by escape tests.
-- Project files are served to the preview through a **scoped custom protocol** rooted at the
-  project directory, so `../` escapes are impossible at the protocol layer.
-- A **CSP** is applied to the preview document. External resources follow FR-K04 policy.
-- Selection/inspection communication uses a **validated, versioned postMessage protocol**
-  (message shape and origin checked; unknown messages ignored).
+### 11.7 Preview isolation strategy (see also Section 14)
 
-### 11.7 Testing boundaries
+The preview renders untrusted project code and must be separated from privileged APIs.
+
+- **Separate renderer, separate context:** the preview runs in its **own Electron renderer** (a
+  dedicated `BrowserWindow`/`WebContentsView`), not in the Astra UI renderer and not in the main
+  process. It loads with `nodeIntegration: false`, `contextIsolation: true`, and `sandbox: true`, and
+  with **no preload bridge** (or a bridge exposing nothing privileged).
+- **No privileged IPC:** the preview has no access to `ipcRenderer`/`ipcMain`, no project handle, and
+  no filesystem channel. Any Astra-issued message is one-way or strictly validated.
+- **Asset delivery via a scoped, read-only mechanism:** project files are served through a custom
+  protocol (or an equivalent read-only scheme rooted at the project directory) so `../` escapes are
+  impossible at the transport layer; the preview cannot read arbitrary paths.
+- **Navigation and window restrictions:** block in-page navigation away from the served origin, deny
+  `window.open` and new-window requests, and deny unexpected external URLs. External resources follow
+  the FR-K04 policy (blocked by default).
+- **CSP:** apply a restrictive Content Security Policy to the preview document; script execution is
+  permitted only for the project's own scripts as required for faithful rendering.
+- **Overlay/selection channel:** Astra draws selection outlines and receives inspection data via a
+  **validated, versioned postMessage protocol** (message shape, source, and origin checked; unknown
+  messages ignored). The protocol is designed so a hostile project cannot forge Astra UI messages
+  across a trust boundary.
+- **Justification (why not "just an iframe"):** a sandboxed iframe (`sandbox="allow-scripts"` without
+  `allow-same-origin`) is a viable containment mechanism and may be used where it fits. A separate
+  Electron renderer is preferred for Astra because it gives process-level isolation, an independent
+  CSP/navigation policy, and a clean boundary that escape tests can target. The final choice is
+  recorded as an open question (`OQ-015`) and must be validated by escape tests (`TEST-017`,
+  `TEST-018`), never assumed secure.
+
+### 11.8 Testing boundaries
 
 - Repo-level projects (`fixtures/`) with synthetic HTML/CSS/JS for every edge case.
 - Parser and Sync modules are pure and tested without a running app.
-- FS Adapter is tested against a temporary directory (and fault-injected).
-- UI/E2E tested against a harness; the Tauri shell is integration-tested where automation
-  permits (see Section 15 for the fallback harness strategy).
+- FS Adapter is tested in the main process against a temporary directory (and fault-injected).
+- Main-process IPC handlers and the preload API are unit/integration tested in isolation.
+- UI is component-tested; full journeys run as Electron E2E with Playwright (Section 15).
 
-### 11.8 Independently developable modules
+### 11.9 Independently developable modules
 
 These can be built and tested in parallel once interfaces are fixed:
 parsers (4,5), sync (12), history (13), FS adapter (3), analyzer (17), token discovery (16).
@@ -1426,7 +1642,7 @@ editing, proprietary runtime, CMS/database, payments, plugin marketplace.
 - Phase 0 proof that surgical write-back preserves formatting (else the thesis fails).
 - Stable model interface + source anchor strategy.
 - Preview sandbox proven to isolate untrusted code.
-- Atomic write + backup primitive in Rust.
+- Atomic write + backup primitive in the Electron main process (Node.js).
 - A curated component set that maps to clean semantic markup.
 
 ### 12.5 Major MVP risks
@@ -1442,14 +1658,14 @@ expected change and nothing else.
 
 ### 12.7 Effort estimate (provisional, assumption-laden)
 
-**Assumptions:** one experienced full-stack developer (strong TS, some Rust) working solo, or a
-two-person team for roughly half the calendar time; familiar with Tauri/Monaco/parse5/PostCSS.
+**Assumptions:** one experienced full-stack developer (strong TS/Node) working solo, or a
+two-person team for roughly half the calendar time; familiar with Electron/Monaco/parse5/PostCSS.
 
 | Workstream | Solo estimate (dev-days) | Notes |
 |---|---|---|
 | Phase 0 prototypes (parse/patch/round-trip, sandbox) | 8-15 | Highest uncertainty; may exceed |
-| Shell + build + installer | 6-10 | Tauri + CI signing unknowns |
-| FS adapter + watcher + atomic writes | 6-10 | Rust-heavy |
+| Shell + build + installer | 6-10 | Electron packaging + CI signing unknowns |
+| FS adapter + watcher + atomic writes | 6-10 | Main-process (Node) heavy |
 | Model + parsers + addressing | 8-15 | Core |
 | Canvas + sandbox + selection/layer tree | 8-15 | Overlay/protocol fiddly |
 | Inspector (schema-driven editing) | 8-15 | Breadth of properties |
@@ -1488,7 +1704,7 @@ broad UI investment.
 - **Exit:** Written go/no-go with evidence. No-go triggers a redesign of the sync strategy.
 
 ### Phase 1 - Desktop foundation and project loading
-- **Deliverables:** Tauri shell (window, menu, settings), FS adapter + watcher, explorer, project
+- **Deliverables:** Electron shell (window, menu, settings), main-process FS service + watcher, explorer, project
   manager + entry detection, packaged build.
 - **Prerequisites:** Phase 0 exit.
 - **Acceptance:** Open/close a real folder; files listed; external change detected; missing files
@@ -1560,7 +1776,8 @@ that project privileges over the machine.
 - **Trusted:** Astra's own code, its bundled dependencies, the main window UI.
 - **Untrusted:** project HTML/CSS/JS, remote resources referenced by the project, imported
   component/token JSON, and any external text.
-- **Boundary 1:** main app context vs. preview context (strongest boundary).
+- **Boundary 1:** Astra UI renderer vs. preview renderer (strongest boundary); the main process is
+  the only privileged context.
 - **Boundary 2:** app vs. filesystem (scoped to the project root).
 - **Boundary 3:** app vs. network (off by default for project resources; no egress in core).
 
@@ -1568,12 +1785,12 @@ that project privileges over the machine.
 
 | ID | Threat | Mitigation |
 |---|---|---|
-| SEC-001 | Malicious project files (HTML/CSS/JS) execute in the app context and call Tauri IPC. | Preview runs in a separate webview context with **no Tauri capabilities**; project code never loads in the main app context. Escape tests (`TEST-SEC-###`) gate this. |
-| SEC-002 | Preview JS reaches the parent/Astra UI or steals data. | If iframe is used: `sandbox="allow-scripts"` without `allow-same-origin`; validated postMessage protocol; no DOM access to parent. Preferred: dedicated webview window. |
+| SEC-001 | Malicious project files (HTML/CSS/JS) execute in the app context and call privileged IPC. | Project code loads only in an isolated preview renderer (Section 11.7) with `nodeIntegration: false`, `contextIsolation: true`, and no privileged preload/IPC; project code is never executed in the Astra UI renderer or the main process. Escape tests (`TEST-017`, `TEST-028`) gate this. |
+| SEC-002 | Preview JS reaches the Astra UI or main process and steals data or escalates privileges. | Separate preview renderer with no shared DOM and no privileged bridge; validated, versioned postMessage for inspection only; navigation/new-window denied. Escape tests (`TEST-017`, `TEST-029`). |
 | SEC-003 | Filesystem access escapes the project root. | Command-only fs surface; canonicalize + prefix-check; reject `..` and symlink escapes; scoped custom protocol for preview assets. |
 | SEC-004 | Path traversal via crafted asset references or file names. | Normalize and validate every path against the root; reject non-UTF-8/odd names gracefully. |
 | SEC-005 | External resource loading leaks data or executes remote script. | CSP on the preview; default policy blocks remote resources; explicit opt-in with a visible indicator; never silently fetch. |
-| SEC-006 | Dependency vulnerabilities. | Minimal pinned dependencies; `cargo audit` + `npm audit` in CI; review before adding deps; bundle assets locally (no CDN). |
+| SEC-006 | Dependency vulnerabilities. | Minimal pinned dependencies; `npm audit` (and `npm audit signatures` where applicable) in CI; review before adding deps; bundle assets locally (no CDN). |
 | SEC-007 | Accidental source-code corruption by buggy patching. | Surgical range patches + preservation tests; atomic writes; backups in `.astra/backups/`; validation re-parse before commit; never write if post-check fails. |
 | SEC-008 | Conflicting external modifications cause data loss. | Hash-based change detection; conflict prompt; no automatic overwrite when both sides changed; compare view before committing. |
 | SEC-009 | AI-generated code introduces vulnerabilities or applies unwanted changes. | AI is opt-in and review-only: changes shown as diffs, applied on approval; no shell execution; provider adapter is the only egress and is user-configured. |
@@ -1582,18 +1799,54 @@ that project privileges over the machine.
 | SEC-012 | `eval`/dynamic code execution of project content inside Astra. | Explicit prohibition: Astra never `eval`s project code; rendering happens in the isolated preview only. |
 | SEC-013 | Symlink escape from the project root. | Resolve symlinks (canonicalize) and re-check containment; optionally refuse to follow symlinks outside the root. |
 | SEC-014 | Data loss on interrupted save. | Temp-file + fsync + atomic rename; `NFR-007` fault-injection tests. |
+| SEC-015 | Insecure renderer configuration regresses during development. | Enforce and test `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`, `webSecurity: true` for the UI and preview renderers; the effective config is asserted by automated tests (`TEST-028`). |
+| SEC-016 | IPC payloads are not validated; a renderer sends forged input. | Validate every IPC payload in the main process (channel allowlist, schema, types, project handle, path containment); reject unknown channels; never trust renderer-supplied paths (`TEST-027`). |
+| SEC-017 | The preload exposes too much to the renderer. | Allowlisted, typed `contextBridge` API only; never expose `ipcRenderer`, `require`, `process`, dynamic channel names, or Node built-ins (`TEST-030`). |
+| SEC-018 | Unexpected navigation, new windows, or OS permission prompts. | Deny unexpected `will-navigate`/new-window requests; deny OS permission requests by default; open external links only through an explicit, user-confirmed handler (`TEST-029`). |
+| SEC-019 | Arbitrary shell/process execution from renderer content. | No renderer path can spawn processes or run shell commands; the main process exposes no such channel; the preview has no process access at all. |
+| SEC-020 | Malformed or malicious project files crash or exploit parsers. | Treat all project content as untrusted; bound parser inputs; fail safe (read-only / last-good render) instead of crashing; malformed and malicious fixtures in tests (`TEST-033`). |
+| SEC-021 | Insecure auto-update channel. | Updates are opt-in, signature-verified, and delivered over TLS; a compromised update channel must not silently install code; disabled by default (Section 10.6). |
+| SEC-022 | Local-first/privacy posture regressed by hidden egress. | No telemetry; no egress on core paths; egress only via explicit, user-configured features; verified by a network-capture test (`TEST-021`). |
 
 ### 14.3 Permission separation summary
 
-| Capability | Main window (Astra UI) | Preview context |
-|---|---|---|
-| Read project files | Yes (scoped) | Read-only via scoped protocol |
-| Write project files | Yes (scoped, atomic) | **No** |
-| Tauri IPC commands | Yes (allowlisted) | **No** |
-| Network egress | Blocked by default | Governed by FR-K04 policy/CSP |
-| Access to OS APIs | Minimal (dialogs, window) | **No** |
+| Capability | Main process | Astra UI renderer | Preview renderer |
+|---|---|---|---|
+| Privileged IPC (filesystem, dialogs) | Yes (validated, allowlisted) | Via the narrow preload bridge only | **No** |
+| Node.js APIs | Yes | **No** (`nodeIntegration: false`) | **No** |
+| Read project files | Yes (scoped) | Via main-process IPC | Read-only via scoped protocol |
+| Write project files | Yes (scoped, atomic) | Via main-process IPC | **No** |
+| Network egress | Governed by policy | Blocked by default | Governed by FR-K04 policy/CSP |
+| Access to OS APIs | Yes (dialogs, window) | Minimal (window controls) | **No** |
 
-### 14.4 Privacy posture
+### 14.4 Required Electron hardening settings (normative)
+
+These settings are mandatory for the UI and preview renderers unless a documented exception is
+approved:
+
+- `nodeIntegration: false`
+- `contextIsolation: true`
+- `sandbox: true` (where supported and appropriate)
+- `webSecurity: true` (never disable)
+- A restrictive **Content Security Policy** on rendered documents.
+- **IPC:** `ipcMain.handle` handlers validate every payload; channels are allowlisted; no dynamic
+  channel names; `ipcRenderer` is never exposed to the renderer.
+- **Preload:** only a small, typed `contextBridge` API; no Node built-ins, no `require`, no `process`.
+- **Navigation:** block navigation away from the app/served origin; deny new windows and unexpected
+  external URLs; deny OS permission requests by default.
+- **Filesystem:** confined to the user-approved project root, with canonicalization and containment
+  checks (Section 11.6).
+- **No shell execution** from renderer content and no `eval` of project code (SEC-012).
+- **No silent destructive edits:** writes are atomic/recoverable and destructive actions require
+  explicit user confirmation (Section 11.6).
+
+Normative reference: Electron's official security documentation (security checklist and process
+model) is the baseline. Where it conflicts with any statement in this PRD, the stricter control
+applies. A compromised renderer must not be able to reach privileged APIs merely because the main
+process runs locally - isolation is enforced by process and configuration boundaries, not by
+assumption.
+
+### 14.5 Privacy posture
 
 No account, no cloud, no telemetry by default, no hidden egress. Diagnostics live only on the
 machine. Any future networked feature is opt-in, disclosed, and disableable, and the core product
@@ -1604,8 +1857,8 @@ remains fully functional offline.
 ## 15. Testing Strategy
 
 Testing prioritizes the **sync engine and preservation** because corruption is the highest-impact
-failure. Tooling: Vitest (unit/integration), Playwright (E2E on a harness), Rust tests for the
-native adapter, plus fault injection.
+failure. Tooling: Vitest (unit/integration), Playwright with Electron support (E2E against the real
+app), main-process integration tests for the filesystem/IPC service, plus fault injection.
 
 ### 15.1 Test layers
 
@@ -1616,17 +1869,23 @@ native adapter, plus fault injection.
   round-trip stability (idempotence: applying the same model yields no further diff).
 - **Filesystem integration tests:** temp-dir projects; atomic write, backup, watcher events,
   locked-file behavior, disk-full simulation.
+- **Main-process and preload API tests:** IPC handler authorization/validation and the exposed
+  `contextBridge` surface, tested in isolation.
 - **UI tests:** component-level behavior of inspector, tree, palette ordering.
-- **End-to-end tests:** full user journeys (Section 6) against a harness.
-- **Security tests:** sandbox escape attempts, path traversal, external resource policy,
-  import validation, no-egress assertion.
-- **Manual verification:** render-parity and installer runs on real Windows machines.
+- **End-to-end tests:** full user journeys (Section 6) against the real Electron app (main +
+  preload + renderer + preview).
+- **Security tests:** sandbox escape attempts, IPC/input validation, navigation/window blocking,
+  path traversal, external resource policy, import validation, no-egress assertion.
+- **Packaging smoke tests:** the packaged Windows build launches, opens a project, saves, and exits
+  offline.
+- **Manual verification:** render-parity, installer, and SmartScreen behavior on real Windows
+  machines.
 
-> [!note] E2E harness fallback
-> Driving the Tauri webview with Playwright can be flaky depending on version. Strategy: run the
-> majority of E2E flows against the same React app served in a plain browser harness with mocked
-> Tauri IPC, and keep a smaller set of true-shell integration tests for windowing/fs/sandbox
-> (`OQ-013`).
+> [!note] Electron E2E
+> Playwright can launch and drive an Electron app directly. Strategy: run full user journeys against
+> the real Electron app (main + preload + renderer + preview); keep fast unit/component tests for
+> logic; and retain a small set of pure-browser tests for UI-only flows. OS-level behaviors
+> (installer, SmartScreen, native dialogs) remain manual verification.
 
 ### 15.2 Required test cases (with IDs)
 
@@ -1658,11 +1917,18 @@ native adapter, plus fault injection.
 | TEST-024 | Large tree (~5,000 nodes) editing | No UI block > 200 ms in scripted scenario. |
 | TEST-025 | Accessibility advisory correctness | Flagged/missed cases match the documented heuristic; never auto-applies. |
 | TEST-026 | Atomicity under kill | File content is old or new, never partial. |
+| TEST-027 | IPC input validation (malformed/forged payloads, traversal via IPC) | Main process rejects invalid payloads and unknown channels; no out-of-root access; no crash. |
+| TEST-028 | Renderer hardening config | Automated assertion that UI and preview renderers run with `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`; no Node globals in the preview. |
+| TEST-029 | Navigation and new-window blocking | The preview cannot navigate away, open new windows, or trigger OS permission prompts. |
+| TEST-030 | Preload surface | Only the allowlisted API is exposed; `ipcRenderer`/`require`/`process` are absent. |
+| TEST-031 | Packaging smoke test (Windows x64) | The packaged build launches, opens a project, saves atomically, and exits, offline. |
+| TEST-032 | Renderer crash recovery | A forced renderer crash does not lose saved data and the UI recovers (`NFR-017`). |
+| TEST-033 | Malformed/malicious project handling | Bounded parsing; no crash; read-only/last-good fallback; no privileged call. |
 
 ### 15.3 Coverage and gates
 
 - Sync + parser + preservation suites are **release-blocking** for Phases 0 and 3.
-- Security tests (`TEST-017`..`TEST-021`) are release-blocking for every phase.
+- Security tests (`TEST-017`..`TEST-021` and `TEST-027`..`TEST-030`) are release-blocking for every phase.
 - Coverage targets are provisional: aim for high branch coverage on parser/sync modules; UI
   coverage measured by journey completion rather than a percentage (`ASM-001`).
 
@@ -1702,19 +1968,20 @@ retired or bounded.
 | ID | Risk | P | I | Mitigation | Validation |
 |---|---|---|---|---|---|
 | RISK-001 | Synchronization/write-back corrupts source (formatting, comments, unsupported syntax). | High | High | Surgical range patches; source anchors; preservation tests; validate-before-write; backups; refuse edits that require rewriting unsupported syntax. | Phase 0 round-trip corpus; `TEST-001`..`TEST-004`, `TEST-011`, `TEST-016`. |
-| RISK-002 | Preview sandbox fails; project code reaches desktop privileges. | Medium | High | Dedicated preview context with no capabilities; iframe without same-origin; scoped protocol; CSP; no-eval; escape tests. | `TEST-017`, `TEST-018` must fail to escape. |
+| RISK-002 | Preview isolation fails; project code reaches desktop privileges. | Medium | High | Separate preview renderer with no privileged preload/IPC; scoped read-only protocol; CSP; navigation/window denial; no-eval; escape tests. | `TEST-017`, `TEST-018`, `TEST-028`, `TEST-029` must fail to escape. |
 | RISK-003 | Sync engine too complex; scope explodes; MVP slips badly. | High | High | Restrict MVP to plain HTML/CSS/JS, a bounded property set, one active page + linked stylesheets; defer components/tokens. | Phase 0 go/no-go; MVP scope review. |
-| RISK-004 | Render parity mismatch between Astra preview and target browsers. | Medium | Medium | Use the real engine (WebView2); document supported features; parity snapshots; degrade gracefully. | `TEST-016`, `SM-004`. |
-| RISK-005 | Tauri webview automation gaps block reliable E2E. | Medium | Medium | Browser-harness fallback with mocked IPC; keep shell integration tests small. | Spike Playwright+Tauri in Phase 1 (`OQ-013`). |
+| RISK-004 | Render parity mismatch between the Astra preview and target browsers. | Medium | Medium | Use the real engine (the Chromium version pinned with Electron); document supported features; parity snapshots; degrade gracefully. | `TEST-016`, `SM-004`. |
+| RISK-005 | Electron packaging or E2E automation issues block reliable delivery. | Medium | Medium | Pin the Electron version; use prebuilt binaries; packaging smoke tests in CI; keep a browser fallback for UI-only flows. | Phase 1 packaging/E2E spike (`OQ-013`). |
 | RISK-006 | Conflict races (external edit + Astra edit) cause loss. | Medium | High | Hash-based detection; conflict prompt; compare view; no auto-overwrite. | `TEST-007`, `TEST-008`, `SM-010`. |
 | RISK-007 | Users find the tool unable to edit their real (messy/complex) projects. | Medium | High | Preservation-first design; read-only for unsupported constructs; open real corpora in Phase 1. | `SM-003`, `SM-004`. |
-| RISK-008 | Dependency vulnerabilities or supply-chain issues. | Medium | Medium | Minimal pinned deps; audits in CI; no remote asset loading. | `cargo audit`/`npm audit` gates; `TEST-021`. |
+| RISK-008 | Dependency vulnerabilities or supply-chain issues. | Medium | Medium | Minimal pinned deps; `npm audit` in CI; no remote asset loading. | `npm audit` gates; `TEST-021`. |
 | RISK-009 | Windows packaging/signing issues (SmartScreen warnings). | Medium | Low/Medium | Early CI packaging spike; document unsigned behavior; pursue signing. | Phase 1 installer test (`OQ-011`). |
 | RISK-010 | Performance collapse on large projects. | Medium | Medium | Virtualized trees; lazy loading; debounced parsing; large-file fallback. | `TEST-023`, `TEST-024`, NFR-004/005. |
 | RISK-011 | Users misinterpret advisory a11y/none-auto-apply behavior. | Low | Medium | Clear "advisory only" labeling; never auto-fix; explain suggested fixes. | `TEST-025`, usability review. |
 | RISK-012 | AI (later) introduces non-determinism/privacy concerns. | Medium | Medium | Opt-in only; provider adapter; diff-review gate; no shell; core works without it. | Phase 6 tests. |
 | RISK-013 | Over-scoping toward a Figma/IDE replacement. | Medium | Medium | Explicit non-goals; enforce MVP scope decisions. | Roadmap reviews. |
 | RISK-014 | Data loss from crash before autosave. | Medium | Medium | Best-effort recovery journal/backups (`FR-A04b`). | Crash-recovery test. |
+| RISK-015 | Electron resource footprint (memory, distribution size) hurts low-end machines or adoption. | Medium | Medium | Measured targets (`NFR-004`, `NFR-018`); lazy preview initialization; reuse a single preview renderer; document the footprint. | `NFR-004`, `NFR-018`, `TEST-023`. |
 
 ---
 
@@ -1727,11 +1994,12 @@ retired or bounded.
 | ASM-001 | All performance/success numbers are provisional until measured; "smooth" is replaced by measurable targets. | Targets may be unrealistic; recalibrate after Phase 0. |
 | ASM-002 | No database is needed; files + a small config store suffice. | May need an index for very large projects (add only if measured). |
 | ASM-003 | MVP targets plain HTML/CSS/JS, one active page + its linked stylesheets. | Multi-page/global sync grows complexity (already P1 via FR-G11). |
-| ASM-004 | Windows/WebView2 is the only MVP platform. | Cross-platform later requires re-validating fs, watcher, and packaging. |
+| ASM-004 | Windows x64 with a pinned, bundled Chromium (Electron) is the only MVP platform. | Cross-platform later requires re-validating fs, watcher, and packaging. |
 | ASM-005 | Users accept `style`-attribute avoidance: edits prefer stylesheet rules by default. | Some users prefer inline; the policy is configurable (FR-G10). |
 | ASM-006 | A curated DnD palette is enough for MVP even though full library/component authoring is deferred. | If not, MVP scope for DnD must be re-examined. |
 | ASM-007 | Accessibility findings should be advisory and never auto-apply. | If users demand auto-fix, add explicit, reviewable batch fixes later. |
 | ASM-008 | Monaco can be bundled fully offline without a CDN. | If not, offline promise (FR-K01) is at risk; use a different local editor. |
+| ASM-009 | The MVP dependency set ships prebuilt binaries, so no native compiler (MSVC/Windows SDK) is required; this is confirmed by attempting the build. | If a native addon is introduced, build-tool requirements change and must be documented. |
 
 ### 18.2 Open questions (with provisional defaults so nothing blocks)
 
@@ -1749,8 +2017,9 @@ retired or bounded.
 | OQ-010 | What portable format for components/tokens? | CSS custom properties + documented HTML/JSON; decide in Phase 5. |
 | OQ-011 | Will releases be code-signed? | Assume unsigned initially; document; pursue a certificate. |
 | OQ-012 | Future monetization that does not gate core editing? | Keep core free/offline; any paid tier is optional and additive. |
-| OQ-013 | Is Playwright+Tauri sufficient for E2E? | Assume partly; use browser-harness fallback; spike in Phase 1. |
+| OQ-013 | Is Playwright's Electron support sufficient for E2E, and which packaging tool (Electron Forge vs. electron-builder) do we standardize on? | Assume Playwright + Electron for app flows; choose the packaging tool in Phase 1. |
 | OQ-014 | How are runtime-generated DOM nodes represented (read-only vs. hidden)? | Read-only in the tree; never written to source. |
+| OQ-015 | Is a separate preview renderer or a sandboxed iframe the better isolation model? | Assume a separate Electron renderer; validate with escape tests (`TEST-017`, `TEST-018`). |
 
 ---
 
@@ -1776,7 +2045,7 @@ browser opening the project from disk without Astra.
 | AC-013 | Basic drag insert/move/reorder works with clear indicators and HTML-nesting validation; invalid drops are rejected with a message. |
 | AC-014 | Advisory a11y checks (alt text, accessible name, form label) flag issues, select the element on click, and never modify source. |
 | AC-015 | With networking disabled, all MVP flows work; enabling networking does not cause silent egress. |
-| AC-016 | The preview cannot call Tauri commands or reach the app context; traversal attempts are blocked (`TEST-017/018`). |
+| AC-016 | The preview cannot call privileged IPC or reach the main process/UI renderer; path-traversal and navigation attempts are blocked (`TEST-017/018/027/029`). |
 | AC-017 | A packaged Windows build installs and runs offline on a clean Windows 10/11 machine. |
 
 ---
@@ -1788,13 +2057,13 @@ browser opening the project from disk without Astra.
 | ID | Item |
 |---|---|
 | DoD-001 | All MVP acceptance criteria (AC-001..AC-017) pass in CI where automatable and in manual verification otherwise. |
-| DoD-002 | Release-blocking suites green: parser/preservation, sync, atomicity, security (`TEST-001`..`TEST-021`). |
+| DoD-002 | Release-blocking suites green: parser/preservation, sync, atomicity, security, and Electron hardening/IPC (`TEST-001`..`TEST-021` and `TEST-027`..`TEST-033`). |
 | DoD-003 | Zero known source-corruption defects; zero silent-overwrite defects. |
 | DoD-004 | Documentation: user guide (open/edit/save), sync behavior + policies (styles vs. inline, formatting), and a "what Astra will not touch" list. |
 | DoD-005 | A packaged, installable Windows build exists and runs offline; install/launch verified on a clean machine. |
 | DoD-006 | Rendering parity documented: supported vs. unsupported features are explicitly listed. |
-| DoD-007 | Security review completed: sandbox, path handling, external resources, import validation, no egress (`SEC-001`..`SEC-014` reviewed). |
-| DoD-008 | TypeScript strict + lint + `cargo clippy` clean; module dependency graph has no core cycles (`NFR-010`). |
+| DoD-007 | Security review completed: preview isolation, renderer hardening, IPC validation, path handling, external resources, import validation, no egress (`SEC-001`..`SEC-022` reviewed). |
+| DoD-008 | TypeScript strict + lint clean across main, preload, and renderer; module dependency graph has no core cycles (`NFR-010`). |
 | DoD-009 | Offline E2E suite passes with networking disabled (`TEST-022`). |
 | DoD-010 | Provisional performance targets (NFR-001..NFR-005) measured and either met or explicitly renegotiated with evidence. |
 | DoD-011 | `.astra/` metadata is provably non-essential: deleting it does not break the project. |
@@ -1824,13 +2093,13 @@ pass, and no new release-blocking risk is left unmitigated without an explicit, 
 | Accessibility | FR-J01..FR-J06 |
 | Local-first | FR-K01..FR-K06 |
 | Optional AI | FR-L01..FR-L02 |
-| Non-functional | NFR-001..NFR-015 |
+| Non-functional | NFR-001..NFR-018 |
 | UI/UX | UX-001..UX-008 |
-| Security | SEC-001..SEC-014 |
-| Testing | TEST-001..TEST-026 |
+| Security | SEC-001..SEC-022 |
+| Testing | TEST-001..TEST-033 |
 | Success | SM-001..SM-012 |
-| Risks | RISK-001..RISK-014 |
-| Assumptions/Questions | ASM-001..ASM-008, OQ-001..OQ-014 |
+| Risks | RISK-001..RISK-015 |
+| Assumptions/Questions | ASM-001..ASM-009, OQ-001..OQ-015 |
 | MVP acceptance | AC-001..AC-017 |
 | Definition of done | DoD-001..DoD-012 |
 
@@ -1854,10 +2123,10 @@ pass, and no new release-blocking risk is left unmitigated without an explicit, 
 
 ## Appendix C - Explicit Non-Implementation Notice
 
-To restate the document's status: **Astra has not been implemented.** There is no application
-code, no dependencies installed, and no configuration in the project directory
-(`D:\code-web\Astra`). This PRD is planning material intended to guide architecture, implementation
-planning, and acceptance testing. Nothing in this document should be read as evidence that a
-requirement has been built or tested. When implementation begins, this document must be reconciled
-with a supplied visual reference (if provided) and updated as measurements replace the provisional
-targets above.
+To restate the document's status: **Astra's application logic has not been implemented.** The
+project directory (`D:\code-web\Astra`) contains at most a project scaffold (tooling and
+dependencies); no feature described here is built or tested. This PRD is planning material intended
+to guide architecture, implementation planning, and acceptance testing. Nothing in this document
+should be read as evidence that a requirement has been built or tested. When implementation begins,
+this document must be reconciled with a supplied visual reference (if provided) and updated as
+measurements replace the provisional targets above.

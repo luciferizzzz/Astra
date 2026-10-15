@@ -1,0 +1,95 @@
+# CI skeleton — PRD §13 lists this alongside the repo scaffold as a Phase 0
+# prerequisite.
+#
+# PRD §15.1 calls CI optional for the MVP, so this is deliberately a skeleton:
+# the gates that actually exist today, on the platform Astra ships for. It is
+# not yet the OS matrix (§15.3) or the network-blocked run (§15.2) — those are
+# named in the PRD as later additions, not as MVP blockers.
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck / test / build / e2e / package
+    # Windows only, because Windows is the only platform Astra supports for
+    # release today. Widening this to a matrix is a Phase 1 decision.
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      # Drives the real Electron shell, not a browser pointed at a dev server.
+      # Known risk: GUI automation on a hosted runner is the least reliable
+      # step here (PRD RISK-005). If it proves flaky it should be split into
+      # its own job rather than silently removed.
+      - name: End-to-end tests
+        run: npm run test:e2e
+
+      # PRD RISK-005 asks for a packaging smoke test in CI. This produces the
+      # unpacked Windows build; it does not yet run the installer.
+      - name: Packaging smoke test
+        run: npm run package
+
+      - name: Upload packaged build
+        uses: actions/upload-artifact@v4
+        with:
+          name: astra-win-unpacked
+          path: release/win-unpacked
+          retention-days: 7
+
+  dependency-audit:
+    name: dependency audit (SEC-006)
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # A critical advisory blocks the build outright. Anything below that is
+      # reported but does not block: the known set today is the `sprintf-js`
+      # chain pulled in by electron-builder, which is build tooling only and
+      # ships to nobody — the packaged asar contains no node_modules at all
+      # (see `electron-builder.yml`). Tracked as an accepted risk until
+      # electron-builder moves off @electron/get < 5.
+      - name: Block on critical advisories
+        run: npm audit --audit-level=critical
+
+      - name: Report remaining advisories
+        continue-on-error: true
+        run: npm audit

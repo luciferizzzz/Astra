@@ -23,6 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 
+# Electron build output (electron-vite -> out/, electron-builder -> release/)
+out
+release
+
 # Test & build artifacts
 coverage
 playwright-report

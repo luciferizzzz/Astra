@@ -1,8 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import { IPC_CHANNELS } from "../src/shared/ipc";
+import { CSP_PRODUCTION } from "../src/shared/csp";
 
 /**
- * Foundation smoke test — proves the Vitest + jsdom harness is wired up.
- * Real parser / sync-engine tests live alongside this file in `tests/`.
+ * Foundation smoke test. Proves the Vitest harness, the jsdom environment and
+ * the modules shared across all three processes are reachable from a test.
+ * Parser / sync-engine tests will live alongside this file once Phase 0 starts.
  */
 describe("foundation", () => {
   it("runs vitest with a jsdom environment", () => {
@@ -10,7 +13,17 @@ describe("foundation", () => {
     expect(document.createElement("div").tagName).toBe("DIV");
   });
 
-  it("supports path alias and TS modules", () => {
-    expect(1 + 1).toBe(2);
+  it("keeps every IPC channel unique and namespaced", () => {
+    const channels = Object.values(IPC_CHANNELS);
+
+    expect(new Set(channels).size).toBe(channels.length);
+    for (const channel of channels) {
+      expect(channel).toMatch(/^astra:/);
+    }
+  });
+
+  it("ships a production CSP that forbids inline scripts", () => {
+    expect(CSP_PRODUCTION).toContain("script-src 'self'");
+    expect(CSP_PRODUCTION).not.toContain("script-src 'self' 'unsafe-inline'");
   });
 });

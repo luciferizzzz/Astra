@@ -1,0 +1,39 @@
+# Electron packaging configuration — PRD §10.6.
+#
+#   npm run package  ->  unpacked Windows build under release/win-unpacked
+#   npm run make     ->  NSIS installer under release/
+
+appId: com.astra.desktop
+productName: Astra
+copyright: Copyright © 2026 Astra
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - out/**/*
+  - package.json
+  # Everything the renderer needs is already bundled by Vite into out/renderer,
+  # and the main/preload bundles import nothing but `electron` and in-repo code.
+  # Shipping the production node_modules tree is therefore pure dead weight:
+  # measured at 110 MB of asar for a 0.6 MB renderer bundle. Revisit only if a
+  # runtime dependency appears that is genuinely loaded rather than bundled.
+  - '!node_modules/**'
+
+# Astra has no native addons. Skipping the rebuild is what keeps packaging free
+# of node-gyp, MSVC and the Windows SDK — a hard requirement for the MVP
+# (PRD ASM-009). Revisit only if a native dependency is formally accepted and
+# its toolchain cost is documented.
+npmRebuild: false
+
+win:
+  target:
+    - nsis
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  shortcutName: Astra

@@ -1,26 +1,35 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    /* Targets the Electron 44 / Chromium runtime. */
+    "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
 
-    /* Bundler mode */
+    /* Bundler mode — electron-vite (rolldown) resolves modules, not Node. */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Path alias */
+    /*
+     * Path aliases. These three lists must stay in sync with each other:
+     *   - here (type checking)
+     *   - electron.vite.config.mts  (main / preload / renderer builds + dev server)
+     *   - vitest.config.mts         (unit tests)
+     * A drift between them compiles fine and only fails at runtime.
+     */
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/renderer/src/*"],
+      "@core/*": ["./src/core/*"]
     },
 
-    /* Testing */
-    "types": ["vitest/globals", "@testing-library/jest-dom"],
+    /* Node types for main/preload, DOM libs above for the renderer, Vitest globals for tests. */
+    "types": ["node", "vitest/globals", "@testing-library/jest-dom"],
 
     /* Linting */
     "strict": true,
@@ -29,6 +38,12 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": ["src", "tests"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": [
+    "src",
+    "tests",
+    "e2e",
+    "electron.vite.config.mts",
+    "vitest.config.mts",
+    "playwright.config.mts"
+  ]
 }

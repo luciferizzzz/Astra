@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      The Content-Security-Policy below carries a placeholder token that
+      `electron.vite.config.mts` swaps for a concrete policy at build time: the
+      strict production policy for a packaged build, the relaxed one only for
+      `npm run dev`. A `file://` document carries no HTTP headers, so this meta
+      tag is the only place a CSP can be attached. See PRD §14.4 (SEC-015).
+
+      Do NOT write the token itself anywhere in this file. The swap uses a plain
+      string match, and a stray copy above the meta tag would swallow the change
+      while leaving the policy empty.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="__CSP__" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Astra</title>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

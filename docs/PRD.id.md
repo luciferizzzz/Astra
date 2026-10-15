@@ -3,6 +3,7 @@ title: PRD - Astra (Bahasa Indonesia)
 type: prd
 author: Project001
 date: 2026-10-14
+updated: 2026-10-15
 status: Draft
 priority: P0
 tags:
@@ -11,7 +12,7 @@ tags:
   - desktop
   - visual-web-designer
   - local-first
-  - tauri
+  - electron
   - bahasa-indonesia
 aliases:
   - PRD-Astra-ID
@@ -31,12 +32,12 @@ aliases:
 
 > [!warning] Status Dokumen - Implementasi Belum Dimulai
 >
-> Dokumen ini hanyalah **spesifikasi**. Belum ada bagian dari Astra yang dibangun, diuji, atau
-> dirilis. Repositori sumber (`D:\code-web\Astra`) saat ini tidak berisi kode aplikasi, tidak
-> ada dependency, dan tidak ada file konfigurasi. Setiap requirement di bawah ini menjelaskan
-> perilaku yang diinginkan, bukan fitur yang sudah jadi. Semua angka performa, estimasi usaha,
-> dan target success metric bersifat **provisional** kecuali secara eksplisit ditandai sebagai
-> hasil pengukuran.
+> Dokumen ini hanyalah **spesifikasi**. Belum ada logika aplikasi yang dibangun, diuji, atau
+> dirilis. Repositori sumber (`D:\code-web\Astra`) paling banyak berisi scaffold proyek (build
+> tooling dan dependency) dan tidak ada fitur yang diimplementasikan. Setiap requirement di bawah
+> ini menjelaskan perilaku yang diinginkan, bukan fitur yang sudah jadi. Semua angka performa,
+> estimasi usaha, dan target success metric bersifat **provisional** kecuali secara eksplisit
+> ditandai sebagai hasil pengukuran.
 >
 > Tidak ditemukan gambar *"supplied Astra visual reference"* di workspace. Karena itu bagian
 > UI/UX menentukan arah desain dalam bentuk prosa (Bagian 9). Jika gambar referensi diberikan
@@ -58,7 +59,7 @@ aliases:
 | Status | Hanya spesifikasi - implementasi belum dimulai |
 | Pemilik | Project001 |
 | Reviewer | Product, Architecture, UX, Security, QA (belum ditentukan) |
-| Dokumen terkait | `PRD-Visual-Web-Builder (Astra).md`, `PRD-Local-Visual-Web-Builder.md` (konsep terkait yang sudah ada; dokumen ini mendefinisikan produk saudara berbasis Tauri) |
+| Dokumen terkait | `PRD-Visual-Web-Builder (Astra).md`, `PRD-Local-Visual-Web-Builder.md` (konsep terkait yang sudah ada; dokumen ini mendefinisikan produk saudara berbasis Electron) |
 
 ### Cara membaca ID requirement
 
@@ -103,6 +104,11 @@ editor apa pun tanpa Astra.
 Produk ini *local-first* secara desain: tanpa akun, tanpa telemetri secara default, dan semua
 fitur inti bekerja offline. Preview website di-*sandbox* sehingga kode proyek yang tidak
 dipercaya tidak bisa menjangkau API desktop yang istimewa atau filesystem.
+
+Astra diimplementasikan sebagai aplikasi desktop **Electron**: main process Node.js yang
+menghosting layanan proyek yang terkendali, renderer React + TypeScript untuk UI, dan
+`contextBridge` yang sempit di antara keduanya. Electron adalah pilihan implementasi, bukan
+pembeda produk Astra (Bagian 10; ADR-001 di Bagian 10.7).
 
 Risiko rekayasa utamanya adalah **sinkronisasi**: menjaga model dokumen visual dan file sumber
 nyata tetap konsisten tanpa merusak formatting, komentar, atau sintaks yang tidak didukung, dan
@@ -411,12 +417,12 @@ Format per requirement: **ID - prioritas** - deskripsi; **Story**; **Acceptance 
 ### A. Aplikasi Desktop
 
 #### FR-A01 - Jendela aplikasi native (P0)
-Astra berjalan sebagai jendela desktop Windows native (webview Tauri 2), bukan tab browser.
+Astra berjalan sebagai jendela desktop Windows native yang dihosting oleh Electron, bukan tab browser.
 - **Story:** Sebagai pengguna, saya ingin aplikasi desktop nyata, supaya terintegrasi dengan OS saya.
 - **Acceptance:** Diberikan aplikasi terpasang, ketika diluncurkan, maka muncul satu jendela aplikasi
   dengan title bar native, bisa di-resize dengan lancar, dan punya kontrol min/max/close OS; tidak ada
   chrome browser.
-- **Dependencies:** Shell Tauri (Bagian 10), pipeline build.
+- **Dependencies:** Shell Electron (Bagian 10), pipeline build.
 - **Limitations:** Windows-first; macOS/Linux nanti.
 
 #### FR-A02 - Menu aplikasi dan kontrol jendela (P0)
@@ -470,7 +476,7 @@ Merilis paket Windows yang bisa diinstal, di-sign atau jelas-jelas unsigned.
 - **Story:** Sebagai pengguna, saya ingin menginstal Astra tanpa toolchain.
 - **Acceptance:** Diberikan build release, ketika saya menjalankan installer di mesin Windows 10/11
   bersih, maka Astra terpasang, bisa diluncurkan offline, dan bisa membuka proyek tanpa ada dev tool.
-- **Dependencies:** Tauri bundler (MSI/NSIS), CI build.
+- **Dependencies:** Packaging Electron (Electron Forge atau electron-builder; NSIS/Squirrel), CI build.
 - **Limitations:** Code signing memerlukan sertifikat (`OQ-011`); build unsigned mungkin memicu
   peringatan SmartScreen.
 
@@ -506,7 +512,7 @@ Lihat FR-A03. Explorer berakar pada folder yang dipilih dan tidak pernah menavig
   aktif, maka Astra membandingkan hash konten dengan hash terakhir yang diketahui; jika dokumen bersih
   ia reload (dengan toast halus), dan jika kotor ia memunculkan konflik sesuai FR-G-Conflict tanpa
   menulis apa pun secara otomatis.
-- **Dependencies:** File watcher (`notify` via Rust), hashing.
+- **Dependencies:** File watcher (Node `fs.watch` di main process), hashing.
 - **Limitations:** Event watcher bergantung OS dan bisa bergabung; Astra melakukan debounce dan
   fallback ke pengecekan hash.
 
@@ -1002,7 +1008,11 @@ secara senyap.
 
 Semua target numerik di bawah ini **provisional** dan harus diukur sebelum diperlakukan sebagai
 komitmen (`ASM-001`). Di mana ada target, metode pengukuran disebutkan. Target dipilih untuk laptop
-Windows kelas menengah era 2024 (mis. CPU 4-core, RAM 16 GB, SSD) kecuali disebut lain.
+Windows kelas menengah (mis. CPU 4-core, RAM 16 GB, SSD) dan juga harus divalidasi pada perangkat yang
+lebih sederhana (CPU 4-core, RAM 8 GB), mengingat model multi-proses Electron. Karena Electron
+membundel Chromium dan menjalankan beberapa proses, angka memori dan ukuran distribusi diperkirakan
+akan jauh lebih tinggi daripada shell system-webview yang lebih ringan; angka-angka itu dinyatakan
+sebagai target yang harus diukur, bukan sebagai janji.
 
 #### NFR-001 - Waktu startup (provisional)
 Cold start sampai jendela welcome interaktif: **target <= 3 s** (P95 atas 20 run).
@@ -1019,8 +1029,11 @@ Klik-ke-seleksi dan edit-properti-ke-update-canvas: **target <= 100 ms** lokal, 
 Pengukuran: performance mark di sekitar pipeline seleksi dan edit.
 
 #### NFR-004 - Penggunaan memori (provisional)
-Idle (layar welcome): **target <= 200 MB RSS**. Proyek sedang terbuka: **target <= 600 MB RSS**.
-Pengukuran: metrik proses OS yang disampel selama skenario ter-skrip.
+Diukur di seluruh pohon proses Electron (main + renderer + helper GPU/utility): idle (layar welcome)
+**target <= 350 MB total RSS**; proyek sedang terbuka dengan preview termuat **target <= 900 MB total
+RSS**. Pengukuran: jumlah metrik semua proses aplikasi yang disampel selama skenario ter-skrip pada
+mesin 16 GB maupun 8 GB; laporkan rincian per proses. Batas provisional ini sengaja lebih longgar
+daripada shell system-webview untuk mencerminkan model proses Electron.
 
 #### NFR-005 - Penanganan pohon besar (provisional)
 Editing dalam dokumen hingga ~5.000 node HTML: tidak ada operasi yang memblok UI > 200 ms.
@@ -1046,16 +1059,17 @@ utama: buka proyek, pilih elemen, edit properti, save. Pengukuran: tooling audit
 walkthrough keyboard-only.
 
 #### NFR-010 - Maintainability
-Batas modular (Bagian 11) tanpa dependency siklus antar modul inti; TypeScript strict mode; Rust clippy
-bersih; antarmuka publik terdokumentasi. Pengukuran: lint dependency-graph, typecheck, gerbang lint di CI.
+Batas modular (Bagian 11) tanpa dependency siklus antar modul inti; TypeScript strict mode; lint bersih
+(main, preload, renderer); antarmuka publik terdokumentasi. Pengukuran: lint dependency-graph, typecheck, gerbang lint di CI.
 
 #### NFR-011 - Cakupan offline
 100% test acceptance MVP lulus dengan jaringan dimatikan (kecuali test yang secara eksplisit ditandai
 network-optional). Pengukuran: job CI yang menjalankan suite dengan jaringan diblokir.
 
 #### NFR-012 - Kompatibilitas
-Mendukung Windows 10 (1809+) dan Windows 11; preview yang dirender harus mengikuti engine WebView2/Edge
-yang tersedia di mesin pengguna. Pengukuran: matriks versi OS di CI/manual.
+Mendukung Windows 10 (21H2+) dan Windows 11; preview yang dirender memakai engine Chromium yang
+dibundel dengan versi Electron yang di-pin pada aplikasi (bukan webview sistem di mesin pengguna).
+Pengukuran: matriks versi OS di CI/manual; versi Electron/Chromium yang di-pin dicatat per rilis.
 
 #### NFR-013 - Integritas data saat perubahan eksternal
 Modifikasi eksternal saat Astra terbuka tidak pernah menghasilkan kehilangan data senyap. Pengukuran:
@@ -1070,6 +1084,22 @@ jaringan selama penggunaan normal menunjukkan tidak ada egress.
 File hingga 5 MB terbuka di code editor tanpa freeze; file lebih besar terbuka dengan peringatan dan
 fallback read-only jika latensi editing tidak dapat diterima. Pengukuran: waktu buka file besar yang
 di-generate.
+
+#### NFR-016 - Latensi refresh preview (provisional)
+Setelah edit source yang sudah settled, preview mencerminkan perubahan dalam **target <= 400 ms**
+(konsisten dengan FR-F05), P95, untuk proyek sedang. Pengukuran: performance mark dari edit yang
+di-debounce sampai paint preview.
+
+#### NFR-017 - Stabilitas renderer
+Tidak ada crash proses renderer dalam sesi ter-skrip 2 jam; jika renderer memang crash, aplikasi
+memulihkan state UI tanpa kehilangan data dan tanpa me-restart main process. Pengukuran: soak otomatis
+plus test injeksi crash paksa (`TEST-032`).
+
+#### NFR-018 - Ukuran distribusi dan instalasi (provisional, diukur bukan dijanjikan)
+Electron membawa runtime Chromium, sehingga artefaknya besar. **Ukur** daripada menargetkan: catat
+jejak terpasang (MB) dan ukuran installer untuk setiap rilis di Windows x64 dan publikasikan angkanya.
+Anggaran perencanaan provisional berupa "orde ratusan MB terpasang" dicatat hanya untuk estimasi; tidak
+boleh dikutip ke pengguna sebagai jaminan. Pengukuran: penghitungan ukuran file pada instalasi bersih.
 
 ---
 
@@ -1086,7 +1116,7 @@ di-generate.
 
 - Lingkungan pengembangan desktop profesional, padat dan kaya informasi, bukan halaman marketing.
 - Basis **dark charcoal** (mis. permukaan near-neutral seperti `#1E1E1E` dengan elevasi berlapis),
-  aksen interaksi **biru/indigo** yang tertahan, kecuali referensi menentukan lain.
+  aksen interaksi **burgundy dan gold** yang tertahan, kecuali referensi menentukan lain.
 - Hierarki tipografi yang jelas, skala spacing yang konsisten, border 1 px halus, efek dekoratif
   minimal. Tanpa gradien berlebihan, glassmorphism, neon, kartu bulat raksasa, atau gaya "AI dashboard"
   generik.
@@ -1182,45 +1212,158 @@ screen-reader untuk tombol ikon-saja, dan menghormati reduced-motion. Target NFR
 
 ## 10. Technical Stack dan Rasional
 
-### 10.1 Stack yang diusulkan (dievaluasi)
+> [!note] Keputusan framework
+> Framework desktop yang dipakai adalah **Electron** (ADR-001, Bagian 10.7). Electron adalah pilihan
+> implementasi, bukan pembeda produk Astra - pembedanya tetap editing visual atas kode sumber nyata
+> yang portabel (Bagian 2). Bagian ini menggantikan rencana Tauri/Rust sebelumnya.
+
+### 10.1 Stack (baseline yang disetujui)
 
 | Area | Pilihan | Wajib untuk MVP | Alasan | Trade-off / keamanan |
 |---|---|---|---|---|
-| Desktop framework | **Tauri 2** | Ya | Biner kecil, backend Rust, model capability per-window yang memungkinkan isolasi preview, tanpa Chromium bawaan (memakai WebView2). | Bergantung WebView2 sistem; kurva belajar Rust; sebagian plugin kurang matang dibanding Electron. |
+| Desktop framework | **Electron** | Ya | Membundel versi Chromium yang diketahui untuk rendering yang konsisten dan otomasi yang matang; main process Node.js untuk pekerjaan filesystem; ekosistem besar dan stabil. | Ukuran distribusi lebih besar dan memori lebih tinggi daripada shell system-webview; keamanan bergantung pada pemisahan main/preload/renderer yang benar (Bagian 14). |
 | Frontend | **React + TypeScript** | Ya | Ekosistem matang untuk UI editor kompleks; typing kuat mengurangi bug model. | Overhead virtual DOM untuk pohon besar (dimigasi oleh virtualisasi/memoization). |
-| Native backend | **Rust** | Ya | Filesystem, watcher, penulisan atomik, hashing, perintah ter-scope sandbox dengan keamanan memori. | Usaha implementasi lebih besar dari Node; harus merancang permukaan IPC yang bersih. |
-| Build tool | **Vite** | Ya | HMR cepat dan dukungan TS; integrasi Tauri kelas satu. | Tidak ada yang material. |
+| Main process aplikasi | **Node.js + TypeScript** | Ya | Filesystem, watcher, penulisan atomik, hashing, dialog, dan validasi IPC di satu tempat yang istimewa. | Konteks istimewa; setiap permintaan IPC harus divalidasi dan API Node tidak boleh sampai ke konten tak terpercaya. |
+| Renderer bridge | **preload script + `contextBridge`** | Ya | Mengekspos API kecil, eksplisit, dan bertipe sambil mempertahankan `contextIsolation` aktif. | Setiap channel yang ditambahkan di sini memperlebar permukaan kepercayaan; jaga tetap minimal dan teraudit. |
+| Build tool / dev server | **Vite** dengan integrasi Electron (mis. `electron-vite` atau plugin Vite setara) | Ya | HMR cepat dan dukungan TS untuk renderer; bundling main/preload yang sederhana. | Jaga `base`/path aset tetap kompatibel dengan Electron (memuat dari `file://`). |
+| Packaging | **Electron Forge** atau **electron-builder** | Ya | Keduanya menghasilkan installer/portable Windows untuk proyek standar tanpa toolchain C++ milik kita sendiri. | Penanganan signing/SmartScreen; ukuran installer besar (Bagian 10.6). |
 | Code editor | **Monaco Editor** | Ya | Terbukti, kaya fitur (highlighting, find, folding), mampu offline saat dibundel lokal. | Bundle besar; harus disajikan lokal (bukan dari CDN) untuk memenuhi offline. |
 | HTML parser | **parse5** | Ya | Parsing patuh spec, info lokasi source untuk patching surgical. | Harus mempertahankan raw text via offset lokasi; parse5 sendiri tidak round-trip formatting, jadi perlu layer patch. |
 | CSS parser | **PostCSS** | Ya | AST dengan preservasi `raws` dan offset source; ekosistem plugin luas. | Fidelitas formatting butuh kehati-hatian; at-rule kompleks butuh penanganan eksplisit. |
 | Drag-and-drop | **dnd-kit** | Ya (Phase 4) | Aksesibel, modern, ramah React; bekerja untuk palet dan reorder. | Paritas pointer/keyboard butuh pengujian eksplisit. |
 | State management | **Zustand** | Ya | Minimal, non-opinionated, menghindari prop-drilling; baik untuk state editor. | Bukan framework penuh; butuh disiplin agar slice tetap modular. |
-| Styling | **Tailwind CSS** | Ya | Design system cepat dan konsisten; menghindari kekacauan CSS buatan di shell. | Harus di-scope agar tidak bocor ke situs yang dipratinjau; sebagian kelas inline verbose. |
-| Unit testing | **Vitest** | Ya | Cepat, native Vite, ramah TS. | Test sinkronisasi level DOM butuh jsdom/happy-dom plus fixture parser. |
-| E2E testing | **Playwright** | Ya | Dapat mengemudikan UI webview; kuat untuk test lintas alur. | Otomasi webview Tauri punya celah; mungkin perlu test harness menyajikan UI di browser untuk mayoritas kasus (lihat Bagian 15). |
+| Styling | **Tailwind CSS (opsional)** | Opsional | Design system cepat dan konsisten untuk shell jika diadopsi. | Sertakan hanya jika jelas membantu; harus di-scope agar tidak pernah bocor ke situs yang dipratinjau. |
+| Unit / integration testing | **Vitest** | Ya | Cepat, native Vite, ramah TS. | Test sinkronisasi level DOM butuh jsdom/happy-dom plus fixture parser. |
+| E2E / app testing | **Playwright** (dukungan Electron) | Ya | Dapat meluncurkan dan mengemudikan aplikasi Electron nyata lintas main/preload/renderer/preview; kuat untuk test lintas alur. | Perilaku level OS (installer, dialog native, SmartScreen) tetap butuh verifikasi manual (Bagian 15). |
 
-### 10.2 Tambahan yang direkomendasikan / kandidat substitusi
+### 10.2 Mengapa Electron
 
-- **File watching:** crate Rust `notify` (standar de-facto) untuk deteksi perubahan eksternal.
-- **Hashing:** `blake3` atau `sha2` untuk hash konten yang dipakai di logika sync/konflik.
-- **Diffing:** library diff JS/Rust (mis. `diff`/`similar`) untuk tampilan Compare (FR-G04).
-- **Sanitasi HTML (khusus preview):** sanitizer yang terverifikasi (mis. DOMPurify) untuk tempat Astra
-  menyuntikkan string tak terpercaya ke UI Astra sendiri (bukan pengganti sandboxing).
-- **Alternatif yang dipertimbangkan - Electron:** ditolak sebagai default karena membundel Chromium
-  menambah ukuran dan memori, dan model proses membuat isolasi preview ketat lebih banyak kerja;
-  namun Electron menawarkan tooling otomasi yang lebih matang. Jika otomasi webview Tauri terbukti
-  terlalu terbatas untuk strategi E2E, pertimbangkan ulang (`OQ-013`).
+UI Astra adalah aplikasi sekelas code editor: pohon React besar (canvas, layer tree, inspector,
+explorer), editor Monaco yang tertanam, dan state lokal yang berumur panjang. Electron selaras dengan
+bentuk itu:
+
+- **Renderer Chromium:** satu engine yang dapat diprediksi dan mutakhir merender preview proyek
+  sekaligus UI aplikasi, terlepas dari webview sistem yang kebetulan terpasang di mesin.
+- **Main process Node.js:** API filesystem, proses, dan dialog kelas satu mendukung layanan proyek
+  yang terkendali (Bagian 11.6) tanpa bahasa implementasi kedua atau bridge lintas bahasa.
+- **Satu bahasa dan ekosistem:** TypeScript di kedua sisi IPC mengurangi bug serialisasi dan menjaga
+  satu model dependency (hanya `npm`).
+- **Tooling yang matang:** packaging (Electron Forge / electron-builder) dan otomasi (Playwright) sudah
+  mapan untuk Electron.
+
+**Trade-off (eksplisit).**
+
+| Dimensi | Konsekuensi Electron | Mitigasi / catatan |
+|---|---|---|
+| Memori | Setiap renderer adalah proses Chromium; memori idle dan per-view melebihi shell system-webview. | Renderer lebih sedikit dan digunakan ulang; inisialisasi preview secara lazy; unload view yang tidak terpakai; target terukur di `NFR-004` (provisional). |
+| Ukuran bundle / distribusi | Membawa runtime Chromium, sehingga installer besar (orde ratusan MB). | Trade-off yang diterima; diukur, bukan dijanjikan (Bagian 10.6, `NFR-018`). |
+| Waktu startup | Cold start mencakup inisialisasi Electron/Chromium. | Tunda pekerjaan non-kritis sampai setelah paint pertama; target di `NFR-001` (provisional). |
+| Keamanan | Main process sangat kuat; kesalahan konfigurasi dapat mengekspos privilege ke kode proyek. | Pemisahan proses yang ditegakkan dan pengaturan yang diperkeras (Bagian 14); preview diisolasi dari API istimewa. |
+
+Ini adalah **trade-off, bukan cacat**. Semuanya diterima karena Astra adalah tool desktop lokal yang
+besar, tempat konsistensi renderer dan kematangan tooling lebih penting daripada biner minimal.
+Electron adalah detail implementasi; jaminan local-first, tanpa akun, offline, dan kepemilikan source
+(Bagian 2 dan 14) tidak berubah.
+
+### 10.3 Tiga jenis "building" yang berbeda (jangan dicampur)
+
+1. **Pengembangan frontend** - Vite membundel React/TypeScript dan UI aplikasi. Hanya memerlukan
+   Node.js dan dependency npm proyek; tanpa compiler native.
+2. **Packaging aplikasi** - membundel aplikasi bersama runtime Electron menjadi installer/portable
+   Windows. Proyek standar memakai **biner Electron prebuilt** yang diunduh oleh npm/Electron Forge;
+   developer **tidak** mengompilasi Electron atau Chromium.
+3. **Kompilasi dependency native** - sebagian paket npm adalah addon native C/C++. Jika sebuah paket
+   mengirimkan **biner prebuilt untuk ABI Electron/Node target**, tidak ada compiler yang dibutuhkan.
+   Jika paket itu harus dibangun dari source (node-gyp), ia mungkin memerlukan **build tool tambahan**,
+   yang di Windows dapat mencakup Microsoft C++ Build Tools dan, tergantung dependency-nya, Windows SDK.
+
+> [!important] Catatan akurasi soal toolchain
+> Electron **tidak** secara kategoris menghilangkan kebutuhan akan Microsoft C++ Build Tools atau
+> Windows SDK. Untuk proyek standar yang dependency-nya mengirim biner prebuilt, keduanya biasanya
+> tidak diperlukan. Kebutuhannya sepenuhnya bergantung pada dependency dan konfigurasi build yang
+> dipilih. Pernyataan apa pun tentang tool mana yang perlu atau tidak perlu harus dikonfirmasi dengan
+> benar-benar mencoba melakukan build di mesin target, jangan pernah diasumsikan.
+
+Set dependency MVP Astra sengaja dipilih untuk menghindari addon native sejauh praktis (Bagian 10.4).
+Jika dependency di masa depan memerlukan kompilasi native, biaya itu dievaluasi saat itu.
+
+### 10.4 Library tambahan (masing-masing dengan tanggung jawab yang jelas)
+
+- **File watching:** `fs.watch` bawaan Node untuk root proyek, dengan debouncing dan hash konten
+  sebagai sumber kebenaran (event watcher bersifat saran dan bergantung OS; FR-B05). Library seperti
+  `chokidar` hanya boleh diadopsi jika `fs.watch` terbukti tidak memadai di Windows; jika diadopsi, ia
+  harus dibenarkan dan diaudit.
+- **Hashing:** `node:crypto` bawaan Node (mis. SHA-256) untuk hash konten yang dipakai di logika
+  sync/konflik.
+- **Diffing:** library diff JS yang kecil (mis. `diff`) untuk tampilan Compare (FR-G04).
+- **Sanitasi HTML (hanya UI Astra sendiri):** sanitizer yang terverifikasi seperti DOMPurify untuk
+  setiap tempat Astra menyuntikkan string tak terpercaya ke UI Astra **sendiri**; ini pertahanan
+  berlapis dan bukan pengganti sandboxing preview.
 - **Database:** **Tidak ada.** Tidak ada requirement yang membenarkannya. State proyek hidup di file;
-  pengaturan aplikasi hidup di file config kecil. (`ASM-002`)
+  pengaturan aplikasi hidup di file config kecil (`ASM-002`).
 
-### 10.3 Implikasi keamanan dari pilihan stack
+### 10.5 Alur kerja pengembangan dan build (Windows)
 
-- **Sistem capability/permission Tauri** adalah tulang punggung least privilege: hanya jendela utama
-  yang menerima perintah filesystem, dan hanya ter-scope ke root proyek aktif.
-- **Jendela/webview preview** tidak diberi perintah Tauri apa pun (Bagian 14).
-- Monaco, parser, dan Tailwind semuanya berjalan di **konteks aplikasi utama** dan diperlakukan sebagai
-  kode terpercaya; **kode proyek** diperlakukan sebagai tidak terpercaya dan hanya hidup di sandbox.
-- Semua dependency di-pin dan diaudit (`cargo audit`, `npm audit`); set dependency sengaja dibuat kecil.
+Proposal skrip npm. Nama-nama ini adalah usulan; tooling yang dipilih harus mendukungnya dan perilaku
+aktualnya harus didefinisikan setelah scaffold difinalisasi.
+
+| Skrip | Tujuan | Catatan |
+|---|---|---|
+| `npm run dev` | Meluncurkan Electron dalam mode pengembangan dengan dev server Vite dan HMR renderer. | Tidak melakukan packaging. |
+| `npm run build` | Type-check dan build bundle frontend (renderer + main + preload). | Menghasilkan output build, bukan installer. |
+| `npm run package` | Melakukan packaging aplikasi ke direktori (unpacked) yang dapat dijalankan. | Electron Forge `package` / electron-builder `--dir`. |
+| `npm run make` | Menghasilkan distributable Windows: installer dan/atau portable (Bagian 10.6). | Electron Forge `make` / electron-builder `--win`. |
+| `npm test` / `npm run test:e2e` | Test unit/integrasi dan end-to-end (Bagian 15). | |
+| `npm run lint` / `npm run typecheck` | Pemeriksaan statis. | |
+
+Tahapan berurutan: **develop -> build frontend -> package -> make installer -> sign/publish.** Seorang
+developer dapat menjalankan dan menguji aplikasi hanya dengan Node.js terpasang; menghasilkan installer
+adalah langkah terpisah yang mungkin juga mengunduh tool packaging.
+
+**CI (opsional).** Workflow GitHub Actions (runner Windows) dapat melakukan lint, test, package, dan
+publish artefak Windows. Runner Windows terhosting menyediakan build tooling tanpa mengharuskan
+developer memasang toolchain lengkap secara lokal, tetapi ini **bukan jaminan** bahwa setiap dependency
+native akan ter-build tanpa tool tambahan. CI **tidak wajib untuk MVP**; ia menjadi berharga setelah
+packaging dan rilis stabil.
+
+### 10.6 Packaging, update, dan distribusi
+
+- **Target:** Windows x64, dipaket dengan Electron Forge atau electron-builder.
+- **Opsi distribusi:** installer (mis. NSIS atau Squirrel) dan, jika didukung, build portable. Set
+  persisnya menjadi keputusan terbuka setelah tool packaging ditetapkan.
+- **Versioning:** versi aplikasi dilacak di `package.json` dan ditampilkan di UI About.
+- **Artefak rilis:** installer/portable plus manifes checksum. Jangan publikasikan ukuran yang
+  dijanjikan sampai diukur (Bagian 10.3; estimasi tidak boleh menjadi janji).
+- **Code signing:** diinginkan untuk mengurangi friksi SmartScreen; memerlukan sertifikat dan
+  merupakan pertanyaan terbuka (`OQ-011`). Build unsigned harus didokumentasikan sebagai demikian.
+- **Update:** auto-update (mis. via `electron-updater`) bersifat **opsional dan opt-in**; ia harus
+  dijelaskan bersama implikasi keamanannya (verifikasi signature, integritas transport) dan tidak boleh
+  pernah menjadi egress tersembunyi yang merusak postur local-first (FR-K03, SEC-010, SEC-021).
+- **Manajemen dependency / kerentanan:** dependency minimal ter-pin, `npm audit` (dan, jika relevan,
+  `npm audit signatures`) di CI, review sebelum menambah dependency, dan tanpa pemuatan aset remote
+  (Bagian 14).
+- **Operasi offline:** setelah instalasi aplikasi harus berjalan sepenuhnya offline; tidak ada alur
+  inti yang boleh memerlukan akses jaringan (FR-K01, FR-K06).
+
+### 10.7 Architecture Decision Record
+
+**ADR-001 - Framework desktop: Electron**
+
+- **Decision:** Electron adalah framework desktop yang disetujui untuk Astra.
+- **Status:** Accepted.
+- **Context:** Tim mengevaluasi opsi implementasi desktop untuk designer web visual local-first dan
+  memilih Electron, menyelaraskan aplikasi desktop dengan ekosistem TypeScript/React dan mengurangi
+  ketergantungan pada alur kerja pengembangan khusus Rust.
+- **Rationale:** keselarasan ekosistem JavaScript/TypeScript, integrasi React yang lugas, kemampuan
+  desktop yang matang (jendela, dialog, filesystem, packaging), dan model dependency serta tooling yang
+  seragam.
+- **Trade-offs:** ukuran distribusi aplikasi yang lebih besar dan potensi penggunaan memori yang lebih
+  tinggi dibanding alternatif system-webview yang lebih ringan.
+- **Consequences:** pemisahan main/preload/renderer, persyaratan keamanan khusus Electron (Bagian 14),
+  dan alur kerja packaging serta testing berbasis Electron (Bagian 10.5, 10.6, 15).
+- **Reconsideration criteria:** tinjau ulang framework hanya jika persyaratan performa, keamanan,
+  pemeliharaan, atau distribusi yang terukur tidak dapat dipenuhi secara wajar (`OQ-013` mencakup
+  pertanyaan tooling E2E). Tidak ada studi benchmark formal yang dilakukan untuk mencapai keputusan ini.
 
 ---
 
@@ -1230,9 +1373,9 @@ screen-reader untuk tombol ikon-saja, dan menghormati reduced-motion. Target NFR
 
 | # | Modul | Tanggung jawab | Bergantung pada |
 |---|---|---|---|
-| 1 | Desktop Shell | Siklus hidup jendela, menu, permukaan IPC, konfigurasi capability, settings. | OS, Tauri |
+| 1 | Desktop Shell | Electron main process: siklus hidup jendela, menu, permukaan IPC, validasi IPC, settings. | OS, Electron |
 | 2 | Project Manager | Buka/tutup proyek, deteksi entri, project graph (halaman ↔ aset), daftar recent. | 3 Filesystem Adapter |
-| 3 | Filesystem Adapter | Baca/tulis/list/watch ter-scope, hashing, penulisan atomik, backup, pemetaan error. | Rust fs, watcher |
+| 3 | Filesystem Adapter | Baca/tulis/list/watch ter-scope, hashing, penulisan atomik, backup, pemetaan error. | Node fs (main process), watcher |
 | 4 | HTML Parser | Parse HTML ke AST dengan source anchor; emit ulang rentang; laporkan isu sintaks. | parse5 |
 | 5 | CSS Parser | Parse CSS ke AST dengan raws/source; media query; input cascade. | PostCSS |
 | 6 | Internal Document Model | Proyeksi ter-address dan dapat didiff; identitas node; operasi edit; pelacakan dirty. | 4, 5 |
@@ -1248,7 +1391,52 @@ screen-reader untuk tombol ikon-saja, dan menghormati reduced-motion. Target NFR
 | 16 | Design Token Manager | Penemuan token (MVP), editing token (P1). | 5, 6 |
 | 17 | Accessibility Analyzer | Pengecekan saran atas model; daftar temuan. | 6 |
 
-### 11.2 Arah dependency berlapis
+### 11.2 Arsitektur proses aplikasi (Electron)
+
+Electron menjalankan beberapa proses. Astra memberi masing-masing tingkat kepercayaan dan permukaan
+API yang jelas.
+
+| Layer | Proses | Kepercayaan | Tanggung jawab | Tidak boleh |
+|---|---|---|---|---|
+| Main | Electron main (Node.js) | Istimewa / terpercaya | Siklus hidup aplikasi, manajemen jendela dan menu, dialog native, pelacakan project root, layanan filesystem yang terkendali, validasi permintaan IPC, settings. | Merender konten proyek yang tidak terpercaya. |
+| Preload | Preload per-renderer | Bridge terpercaya, minimal | Mengekspos API kecil, eksplisit, dan bertipe via `contextBridge`; menerjemahkan panggilan hanya ke channel IPC yang sudah diverifikasi. | Mengekspos `ipcRenderer`, `require`, `process`, atau nama channel arbitrer. |
+| Renderer (UI) | Chromium renderer | Terpercaya (UI Astra sendiri) | UI React: host canvas, layer tree, inspector, explorer, Monaco, state (Zustand). | Menerima API Node. Berjalan dengan `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`. |
+| Preview | Renderer terisolasi / view bersarang | **Tidak terpercaya** | Merender HTML/CSS/JS proyek pengguna. | Mengakses IPC/preload/main, bernavigasi bebas, membuka jendela, atau menyentuh filesystem. |
+
+```text
+  +--------------------------------------------------------------+
+  |                   Electron Main (Node.js)                    |
+  |  lifecycle | windows | menus | dialogs | settings            |
+  |  filesystem service (scoped)   |   IPC request validation    |
+  +-------------------^-----------------------------^------------+
+                      |  ipcMain.handle (validated) |
+        +-------------+--------------+              |
+        |                            |              |
+  +-----v-------------+   +----------v-----------+  |
+  |  Preload (UI)     |   |  Preload (Preview)   |  |
+  |  contextBridge    |   |  minimal / none      |  |
+  +-----^-------------+   +----------^-----------+  |
+        |                            |              |
+  +-----v-------------+   +----------v-----------+  |
+  |  Renderer: Astra  |   |  Preview renderer    |  |
+  |  UI (React)       |   |  (untrusted project) |  |
+  +-------------------+   +----------------------+  |
+        ^                                            |
+        |  validated postMessage (selection/overlay) |
+        +--------------------------------------------+
+```
+
+Batas kepercayaan:
+
+1. **Main <-> Renderer** (istimewa vs UI): setiap pesan yang menyeberang ke main divalidasi (allowlist
+   channel, schema payload, containment project root).
+2. **UI Astra <-> Preview** (UI terpercaya vs proyek tidak terpercaya): komunikasi memakai protokol
+   postMessage tervalidasi dan terversi; preview tidak menerima channel istimewa.
+3. **App <-> Filesystem:** hanya layanan filesystem di main process yang menyentuh disk, ter-scope ke
+   root proyek aktif (Bagian 11.6).
+4. **App <-> Network:** mati secara default untuk sumber daya proyek (FR-K04); tanpa egress di jalur inti.
+
+### 11.3 Arah dependency berlapis
 
 ```text
             +---------------------------------------------------+
@@ -1288,7 +1476,7 @@ Dependency mengarah **ke bawah dan ke dalam** (UI -> model -> parser/sync -> fil
 Tidak ada modul inti yang bergantung pada modul UI. Ini menjaga parser dan sync tetap dapat diuji
 secara terisolasi.
 
-### 11.3 Aliran data
+### 11.4 Aliran data
 
 **Jalur baca (buka proyek):**
 
@@ -1322,7 +1510,7 @@ Event watcher -> FS Adapter me-hash file -> bandingkan dengan hash terakhir dike
   -> dokumen kotor: prompt konflik (tanpa auto-write)
 ```
 
-### 11.4 Strategi penanganan error
+### 11.5 Strategi penanganan error
 
 - **Tidak pernah destruktif saat error:** kegagalan parser, kegagalan save, dan konflik harus
   meninggalkan file di disk tetap valid dan buffer di memori dapat dipulihkan.
@@ -1333,37 +1521,68 @@ Event watcher -> FS Adapter me-hash file -> bandingkan dengan hash terakhir dike
 - **Fallback:** gagal parse -> pertahankan render terakhir yang baik; gagal save -> pertahankan buffer
   kotor dan tawarkan retry/Save-As; konstruksi tidak didukung -> read-only, tidak pernah tulis ulang.
 
-### 11.5 Batas permission filesystem
+### 11.6 Filesystem dan manajemen proyek (main process Electron)
 
-- Semua operasi fs terjadi di **konteks jendela utama saja**, melalui permukaan perintah Rust yang:
-  (a) menerima handle proyek yang dikeluarkan saat open; (b) mengkanonikalisasi setiap path;
-  (c) memverifikasi path kanonik berada di dalam root proyek; (d) menolak traversal `..` dan escape
-  symlink; (e) menulis hanya via temp+rename atomik di dalam root yang sama.
-- **Konteks preview** tidak menerima perintah fs.
-- `.astra/` hanya menyimpan metadata non-esensial dan opsional untuk validitas proyek.
+Renderer tidak pernah menyentuh filesystem secara langsung. Semua akses disk adalah **layanan
+terkendali di main process Electron**, yang dipanggil lewat IPC yang tervalidasi.
 
-### 11.6 Strategi preview sandbox (lihat juga Bagian 14)
+- **Pemilihan folder:** dialog native (gestur pengguna) menghasilkan sebuah **project root**.
+- **Pelacakan project root:** main process menyimpan root kanonik dan mengeluarkan handle proyek; setiap
+  operasi memerlukan handle itu.
+- **Operasi yang di-allowlist:** read, list, stat, watch, write, create, rename, delete - masing-masing
+  handler IPC bernama dan bertipe. Tidak ada channel generik "baca path apa pun", "tulis path apa pun",
+  atau "exec".
+- **Penanganan path yang aman:** kanonikalisasi setiap path; verifikasi containment di dalam project
+  root; tolak traversal `..`, escape symlink, dan nama non-UTF-8/aneh dengan mulus.
+- **Batas:** tegakkan batas ukuran file dan operasi yang wajar; tolak membuka atau menimpa di luar batas itu.
+- **Save atomik / dapat dipulihkan:** tulis ke file temp di direktori yang sama, fsync, rename atomik
+  menimpa target, dan catat backup di `.astra/backups/` (FR-G08). Jika gagal, file asli tetap utuh.
+- **File yang diubah / dipindah / dihapus di luar:** dideteksi via watcher + hash konten dan
+  direkonsiliasi sesuai FR-B05/FR-G02 (reload bersih vs. prompt konflik); tidak pernah ditimpa secara senyap.
+- **Operasi destruktif:** memerlukan konfirmasi eksplisit; tidak ada yang dihapus secara senyap.
+- **Preview:** menerima **tanpa** kemampuan filesystem; aset proyek sampai ke sana hanya via mekanisme
+  read-only yang ter-scope (Bagian 11.7).
+- `.astra/` hanya menyimpan metadata non-esensial dan tetap opsional untuk validitas proyek.
 
-- Preview dirender di **jendela WebView khusus** (atau, jika satu jendela diharuskan, iframe dengan
-  `sandbox="allow-scripts"` dan **tanpa** `allow-same-origin`) yang set capability Tauri-nya berisi
-  **tanpa** perintah istimewa.
-- Preview **tidak** diberi Tauri IPC. Jika `window.__TAURI__` ada, ia dihilangkan/tidak tersedia di
-  konteks itu; strategi divalidasi oleh test escape.
-- File proyek disajikan ke preview melalui **protokol kustom ter-scope** yang berakar pada direktori
-  proyek, sehingga escape `../` tidak mungkin di layer protokol.
-- **CSP** diterapkan pada dokumen preview. Sumber daya eksternal mengikuti kebijakan FR-K04.
-- Komunikasi seleksi/inspeksi memakai **protokol postMessage tervalidasi dan terversi** (shape pesan dan
-  origin dicek; pesan tak dikenal diabaikan).
+### 11.7 Strategi isolasi preview (lihat juga Bagian 14)
 
-### 11.7 Batas pengujian
+Preview merender kode proyek yang tidak terpercaya dan harus dipisahkan dari API istimewa.
+
+- **Renderer terpisah, konteks terpisah:** preview berjalan di **renderer Electron-nya sendiri**
+  (`BrowserWindow`/`WebContentsView` khusus), bukan di renderer UI Astra dan bukan di main process. Ia
+  dimuat dengan `nodeIntegration: false`, `contextIsolation: true`, dan `sandbox: true`, serta **tanpa
+  preload bridge** (atau bridge yang tidak mengekspos apa pun yang istimewa).
+- **Tanpa IPC istimewa:** preview tidak punya akses ke `ipcRenderer`/`ipcMain`, tidak punya handle
+  proyek, dan tidak punya channel filesystem. Pesan apa pun yang dikirim Astra bersifat satu arah atau
+  divalidasi secara ketat.
+- **Pengiriman aset via mekanisme read-only yang ter-scope:** file proyek disajikan melalui protokol
+  kustom (atau skema read-only setara yang berakar pada direktori proyek) sehingga escape `../` tidak
+  mungkin di layer transport; preview tidak dapat membaca path arbitrer.
+- **Pembatasan navigasi dan jendela:** blokir navigasi dalam halaman menjauh dari origin yang
+  disajikan, tolak `window.open` dan permintaan jendela baru, dan tolak URL eksternal yang tak terduga.
+  Sumber daya eksternal mengikuti kebijakan FR-K04 (diblokir secara default).
+- **CSP:** terapkan Content Security Policy yang ketat pada dokumen preview; eksekusi script hanya
+  diizinkan untuk script milik proyek sendiri sejauh diperlukan untuk rendering yang setia.
+- **Channel overlay/seleksi:** Astra menggambar outline seleksi dan menerima data inspeksi via
+  **protokol postMessage tervalidasi dan terversi** (shape pesan, sumber, dan origin dicek; pesan tak
+  dikenal diabaikan). Protokol dirancang agar proyek yang jahat tidak dapat memalsukan pesan UI Astra
+  melintasi batas kepercayaan.
+- **Justifikasi (mengapa bukan sekadar "iframe"):** iframe ter-sandbox (`sandbox="allow-scripts"` tanpa
+  `allow-same-origin`) adalah mekanisme kontainmen yang layak dan dapat dipakai di tempat yang cocok.
+  Renderer Electron terpisah lebih disukai untuk Astra karena memberi isolasi tingkat proses, kebijakan
+  CSP/navigasi yang independen, dan batas bersih yang dapat disasar test escape. Pilihan akhir dicatat
+  sebagai pertanyaan terbuka (`OQ-015`) dan harus divalidasi oleh test escape (`TEST-017`, `TEST-018`),
+  tidak pernah diasumsikan aman.
+
+### 11.8 Batas pengujian
 
 - Proyek tingkat repo (`fixtures/`) dengan HTML/CSS/JS sintetis untuk setiap kasus tepi.
 - Modul parser dan Sync bersifat murni dan diuji tanpa aplikasi berjalan.
-- FS Adapter diuji terhadap direktori temporer (dan fault-injected).
-- UI/E2E diuji terhadap harness; shell Tauri diuji integrasinya di mana otomasi memungkinkan
-  (lihat Bagian 15 untuk strategi fallback harness).
+- FS Adapter diuji di main process terhadap direktori temporer (dan fault-injected).
+- Handler IPC main process dan API preload diuji unit/integrasi secara terisolasi.
+- UI diuji tingkat komponen; journey penuh dijalankan sebagai E2E Electron dengan Playwright (Bagian 15).
 
-### 11.8 Modul yang dapat dikembangkan secara independen
+### 11.9 Modul yang dapat dikembangkan secara independen
 
 Ini dapat dibangun dan diuji secara paralel setelah antarmuka dipatok:
 parser (4,5), sync (12), history (13), FS adapter (3), analyzer (17), penemuan token (16).
@@ -1412,7 +1631,7 @@ runtime proprietary, CMS/database, pembayaran, plugin marketplace.
 - Bukti Phase 0 bahwa write-back surgical mempertahankan formatting (jika tidak, tesis gagal).
 - Antarmuka model yang stabil + strategi source anchor.
 - Preview sandbox terbukti mengisolasi kode tak terpercaya.
-- Primitif penulisan atomik + backup di Rust.
+- Primitif penulisan atomik + backup di main process Electron (Node.js).
 - Set komponen terkurasi yang memetakan ke markup semantik bersih.
 
 ### 12.5 Risiko MVP utama
@@ -1428,14 +1647,14 @@ diharapkan dan tidak ada yang lain.
 
 ### 12.7 Estimasi usaha (provisional, sarat asumsi)
 
-**Asumsi:** satu developer full-stack berpengalaman (TS kuat, sedikit Rust) bekerja solo, atau tim dua
-orang untuk sekitar setengah waktu kalender; familiar dengan Tauri/Monaco/parse5/PostCSS.
+**Asumsi:** satu developer full-stack berpengalaman (TS/Node kuat) bekerja solo, atau tim dua
+orang untuk sekitar setengah waktu kalender; familiar dengan Electron/Monaco/parse5/PostCSS.
 
 | Workstream | Estimasi solo (dev-hari) | Catatan |
 |---|---|---|
 | Prototipe Phase 0 (parse/patch/round-trip, sandbox) | 8-15 | Ketidakpastian tertinggi; bisa lebih |
-| Shell + build + installer | 6-10 | Tauri + unknown CI signing |
-| FS adapter + watcher + penulisan atomik | 6-10 | Berat di Rust |
+| Shell + build + installer | 6-10 | Electron packaging + unknown CI signing |
+| FS adapter + watcher + penulisan atomik | 6-10 | Berat di main process (Node) |
 | Model + parser + addressing | 8-15 | Inti |
 | Canvas + sandbox + selection/layer tree | 8-15 | Overlay/protokol rumit |
 | Inspector (editing berbasis schema) | 8-15 | Keluasan properti |
@@ -1473,7 +1692,7 @@ Roadmap memprioritaskan **validasi teknis sync engine HTML/CSS** sebelum investa
 - **Exit:** Go/no-go tertulis dengan bukti. No-go memicu desain ulang strategi sync.
 
 ### Phase 1 - Fondasi desktop dan pemuatan proyek
-- **Deliverables:** Shell Tauri (jendela, menu, settings), FS adapter + watcher, explorer, project manager
+- **Deliverables:** Shell Electron (jendela, menu, settings), layanan FS main process + watcher, explorer, project manager
   + deteksi entri, build terkemas.
 - **Prasyarat:** Exit Phase 0.
 - **Acceptance:** Buka/tutup folder nyata; file terdaftar; perubahan eksternal terdeteksi; file hilang
@@ -1545,7 +1764,8 @@ memberi privilege proyek itu atas mesin.
 - **Terpercaya:** kode Astra sendiri, dependency yang dibundel, UI jendela utama.
 - **Tidak terpercaya:** HTML/CSS/JS proyek, sumber daya remote yang direferensikan proyek, JSON
   komponen/token yang diimpor, dan teks eksternal apa pun.
-- **Batas 1:** konteks aplikasi utama vs. konteks preview (batas terkuat).
+- **Batas 1:** renderer UI Astra vs. renderer preview (batas terkuat); main process adalah satu-satunya
+  konteks istimewa.
 - **Batas 2:** aplikasi vs. filesystem (ter-scope ke root proyek).
 - **Batas 3:** aplikasi vs. jaringan (mati secara default untuk sumber daya proyek; tanpa egress di inti).
 
@@ -1553,12 +1773,12 @@ memberi privilege proyek itu atas mesin.
 
 | ID | Ancaman | Mitigasi |
 |---|---|---|
-| SEC-001 | File proyek berbahaya (HTML/CSS/JS) dieksekusi di konteks aplikasi dan memanggil IPC Tauri. | Preview berjalan di konteks webview terpisah **tanpa capability Tauri**; kode proyek tidak pernah dimuat di konteks aplikasi utama. Test escape (`TEST-SEC-###`) menjadi gerbangnya. |
-| SEC-002 | JS preview menjangkau parent/UI Astra atau mencuri data. | Jika memakai iframe: `sandbox="allow-scripts"` tanpa `allow-same-origin`; protokol postMessage tervalidasi; tanpa akses DOM ke parent. Lebih disarankan: jendela webview khusus. |
+| SEC-001 | File proyek berbahaya (HTML/CSS/JS) dieksekusi di konteks aplikasi dan memanggil IPC istimewa. | Kode proyek hanya dimuat di renderer preview yang terisolasi (Bagian 11.7) dengan `nodeIntegration: false`, `contextIsolation: true`, dan tanpa preload/IPC istimewa; kode proyek tidak pernah dieksekusi di renderer UI Astra atau di main process. Test escape (`TEST-017`, `TEST-028`) menjadi gerbangnya. |
+| SEC-002 | JS preview menjangkau UI Astra atau main process dan mencuri data atau menaikkan privilege. | Renderer preview terpisah tanpa DOM bersama dan tanpa bridge istimewa; postMessage tervalidasi dan terversi hanya untuk inspeksi; navigasi/jendela baru ditolak. Test escape (`TEST-017`, `TEST-029`). |
 | SEC-003 | Akses filesystem lolos dari root proyek. | Permukaan fs hanya via perintah; kanonikalisasi + cek prefix; tolak `..` dan escape symlink; protokol kustom ter-scope untuk aset preview. |
 | SEC-004 | Path traversal via referensi aset atau nama file yang dibuat khusus. | Normalisasi dan validasi setiap path terhadap root; tolak nama yang aneh/non-UTF-8 dengan mulus. |
 | SEC-005 | Pemuatan sumber daya eksternal membocorkan data atau menjalankan script remote. | CSP pada preview; kebijakan default memblokir sumber daya remote; opt-in eksplisit dengan indikator terlihat; tidak pernah fetch senyap. |
-| SEC-006 | Kerentanan dependency. | Dependency minimal ter-pin; `cargo audit` + `npm audit` di CI; review sebelum menambah dep; bundel aset lokal (tanpa CDN). |
+| SEC-006 | Kerentanan dependency. | Dependency minimal ter-pin; `npm audit` (dan `npm audit signatures` jika relevan) di CI; review sebelum menambah dep; bundel aset lokal (tanpa CDN). |
 | SEC-007 | Korupsi kode sumber tak sengaja oleh patching yang buggy. | Patch rentang surgical + test preservasi; penulisan atomik; backup di `.astra/backups/`; validasi re-parse sebelum commit; tidak menulis jika post-check gagal. |
 | SEC-008 | Modifikasi eksternal yang berkonflik menyebabkan kehilangan data. | Deteksi perubahan berbasis hash; prompt konflik; tidak ada penimpaan otomatis saat kedua sisi berubah; tampilan compare sebelum berkomitmen. |
 | SEC-009 | Kode hasil AI memperkenalkan kerentanan atau menerapkan perubahan yang tidak diinginkan. | AI opt-in dan review-only: perubahan ditampilkan sebagai diff, diterapkan atas persetujuan; tanpa eksekusi shell; adapter provider adalah satu-satunya egress dan dikonfigurasi pengguna. |
@@ -1567,18 +1787,54 @@ memberi privilege proyek itu atas mesin.
 | SEC-012 | `eval`/eksekusi kode dinamis atas konten proyek di dalam Astra. | Larangan eksplisit: Astra tidak pernah `eval` kode proyek; rendering terjadi hanya di preview yang terisolasi. |
 | SEC-013 | Escape symlink dari root proyek. | Resolve symlink (kanonikalisasi) dan cek ulang containment; secara opsional menolak mengikuti symlink di luar root. |
 | SEC-014 | Kehilangan data saat save terputus. | Temp-file + fsync + rename atomik; test fault-injection `NFR-007`. |
+| SEC-015 | Konfigurasi renderer yang tidak aman merosot selama pengembangan. | Tegakkan dan uji `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`, `webSecurity: true` untuk renderer UI dan preview; konfigurasi efektif diassert oleh test otomatis (`TEST-028`). |
+| SEC-016 | Payload IPC tidak divalidasi; renderer mengirim input palsu. | Validasi setiap payload IPC di main process (allowlist channel, schema, tipe, handle proyek, containment path); tolak channel tak dikenal; jangan pernah memercayai path yang dipasok renderer (`TEST-027`). |
+| SEC-017 | Preload mengekspos terlalu banyak ke renderer. | Hanya API `contextBridge` yang di-allowlist dan bertipe; jangan pernah mengekspos `ipcRenderer`, `require`, `process`, nama channel dinamis, atau bawaan Node (`TEST-030`). |
+| SEC-018 | Navigasi tak terduga, jendela baru, atau prompt izin OS. | Tolak permintaan `will-navigate`/jendela baru yang tak terduga; tolak permintaan izin OS secara default; buka tautan eksternal hanya lewat handler eksplisit yang dikonfirmasi pengguna (`TEST-029`). |
+| SEC-019 | Eksekusi shell/proses arbitrer dari konten renderer. | Tidak ada jalur renderer yang dapat menjalankan proses atau perintah shell; main process tidak mengekspos channel semacam itu; preview sama sekali tidak punya akses proses. |
+| SEC-020 | File proyek yang malformed atau berbahaya membuat parser crash atau dieksploitasi. | Perlakukan semua konten proyek sebagai tidak terpercaya; batasi input parser; gagal dengan aman (read-only / render terakhir yang baik) alih-alih crash; fixture malformed dan berbahaya ada di test (`TEST-033`). |
+| SEC-021 | Channel auto-update yang tidak aman. | Update bersifat opt-in, terverifikasi signature, dan dikirim via TLS; channel update yang dikompromikan tidak boleh memasang kode secara senyap; mati secara default (Bagian 10.6). |
+| SEC-022 | Postur local-first/privasi merosot karena egress tersembunyi. | Tanpa telemetri; tanpa egress di jalur inti; egress hanya via fitur eksplisit yang dikonfigurasi pengguna; diverifikasi oleh test capture jaringan (`TEST-021`). |
 
 ### 14.3 Ringkasan pemisahan permission
 
-| Capability | Jendela utama (UI Astra) | Konteks preview |
-|---|---|---|
-| Baca file proyek | Ya (ter-scope) | Read-only via protokol ter-scope |
-| Tulis file proyek | Ya (ter-scope, atomik) | **Tidak** |
-| Perintah IPC Tauri | Ya (allowlist) | **Tidak** |
-| Egress jaringan | Diblokir secara default | Diatur kebijakan FR-K04/CSP |
-| Akses API OS | Minimal (dialog, jendela) | **Tidak** |
+| Capability | Main process | Renderer UI Astra | Renderer preview |
+|---|---|---|---|
+| IPC istimewa (filesystem, dialog) | Ya (tervalidasi, ter-allowlist) | Hanya via bridge preload yang sempit | **Tidak** |
+| API Node.js | Ya | **Tidak** (`nodeIntegration: false`) | **Tidak** |
+| Baca file proyek | Ya (ter-scope) | Via IPC main process | Read-only via protokol ter-scope |
+| Tulis file proyek | Ya (ter-scope, atomik) | Via IPC main process | **Tidak** |
+| Egress jaringan | Diatur kebijakan | Diblokir secara default | Diatur kebijakan FR-K04/CSP |
+| Akses API OS | Ya (dialog, jendela) | Minimal (kontrol jendela) | **Tidak** |
 
-### 14.4 Postur privasi
+### 14.4 Persyaratan hardening Electron (normatif)
+
+Pengaturan ini wajib untuk renderer UI dan preview kecuali ada pengecualian yang disetujui dan
+didokumentasikan:
+
+- `nodeIntegration: false`
+- `contextIsolation: true`
+- `sandbox: true` (di mana didukung dan sesuai)
+- `webSecurity: true` (jangan pernah dinonaktifkan)
+- **Content Security Policy** yang ketat pada dokumen yang dirender.
+- **IPC:** handler `ipcMain.handle` memvalidasi setiap payload; channel di-allowlist; tanpa nama
+  channel dinamik; `ipcRenderer` tidak pernah diekspos ke renderer.
+- **Preload:** hanya API `contextBridge` yang kecil dan bertipe; tanpa bawaan Node, tanpa `require`,
+  tanpa `process`.
+- **Navigasi:** blokir navigasi menjauh dari aplikasi/origin yang disajikan; tolak jendela baru dan URL
+  eksternal yang tak terduga; tolak permintaan izin OS secara default.
+- **Filesystem:** terbatas pada project root yang disetujui pengguna, dengan kanonikalisasi dan
+  pengecekan containment (Bagian 11.6).
+- **Tanpa eksekusi shell** dari konten renderer dan tanpa `eval` kode proyek (SEC-012).
+- **Tanpa edit destruktif senyap:** penulisan bersifat atomik/dapat dipulihkan dan aksi destruktif
+  memerlukan konfirmasi eksplisit pengguna (Bagian 11.6).
+
+Referensi normatif: dokumentasi keamanan resmi Electron (security checklist dan process model) adalah
+baseline-nya. Di mana ia bertentangan dengan pernyataan mana pun di PRD ini, kontrol yang lebih ketat
+yang berlaku. Renderer yang dikompromikan tidak boleh bisa menjangkau API istimewa hanya karena main
+process berjalan lokal - isolasi ditegakkan oleh batas proses dan konfigurasi, bukan oleh asumsi.
+
+### 14.5 Postur privasi
 
 Tanpa akun, tanpa cloud, tanpa telemetri secara default, tanpa egress tersembunyi. Diagnostik hanya
 hidup di mesin. Fitur jaringan apa pun di masa depan bersifat opt-in, diungkapkan, dan dapat
@@ -1589,8 +1845,8 @@ dimatikan, dan produk inti tetap berfungsi penuh secara offline.
 ## 15. Strategi Testing
 
 Testing memprioritaskan **sync engine dan preservasi** karena korupsi adalah kegagalan berdampak
-tertinggi. Tooling: Vitest (unit/integrasi), Playwright (E2E pada harness), test Rust untuk adapter
-native, plus fault injection.
+tertinggi. Tooling: Vitest (unit/integrasi), Playwright dengan dukungan Electron (E2E terhadap aplikasi
+nyata), test integrasi main process untuk layanan filesystem/IPC, plus fault injection.
 
 ### 15.1 Lapisan test
 
@@ -1601,17 +1857,22 @@ native, plus fault injection.
   round-trip (idempotensi: menerapkan model yang sama tidak menghasilkan diff lanjutan).
 - **Test integrasi filesystem:** proyek di temp-dir; penulisan atomik, backup, event watcher, perilaku file
   terkunci, simulasi disk penuh.
+- **Test API main-process dan preload:** otorisasi/validasi handler IPC dan permukaan `contextBridge`
+  yang diekspos, diuji secara terisolasi.
 - **Test UI:** perilaku tingkat komponen dari inspector, tree, urutan palet.
-- **Test end-to-end:** journey pengguna penuh (Bagian 6) terhadap harness.
-- **Test keamanan:** upaya escape sandbox, path traversal, kebijakan sumber daya eksternal, validasi impor,
-  penegasan tanpa egress.
-- **Verifikasi manual:** paritas render dan run installer di mesin Windows nyata.
+- **Test end-to-end:** journey pengguna penuh (Bagian 6) terhadap aplikasi Electron nyata (main +
+  preload + renderer + preview).
+- **Test keamanan:** upaya escape sandbox, validasi IPC/input, pemblokiran navigasi/jendela, path
+  traversal, kebijakan sumber daya eksternal, validasi impor, penegasan tanpa egress.
+- **Packaging smoke test:** build Windows terkemas diluncurkan, membuka proyek, menyimpan, dan keluar
+  secara offline.
+- **Verifikasi manual:** paritas render, installer, dan perilaku SmartScreen di mesin Windows nyata.
 
-> [!note] Fallback harness E2E
-> Mengemudikan webview Tauri dengan Playwright bisa flaky tergantung versi. Strategi: jalankan mayoritas
-> alur E2E terhadap aplikasi React yang sama yang disajikan di harness browser biasa dengan IPC Tauri
-> yang dimock, dan pertahankan set kecil test integrasi shell sungguhan untuk windowing/fs/sandbox
-> (`OQ-013`).
+> [!note] Electron E2E
+> Playwright dapat meluncurkan dan mengemudikan aplikasi Electron secara langsung. Strategi: jalankan
+> journey pengguna penuh terhadap aplikasi Electron nyata (main + preload + renderer + preview);
+> pertahankan test unit/komponen yang cepat untuk logika; dan pertahankan set kecil test browser murni
+> untuk alur UI-saja. Perilaku level OS (installer, SmartScreen, dialog native) tetap verifikasi manual.
 
 ### 15.2 Test case yang wajib (dengan ID)
 
@@ -1643,11 +1904,18 @@ native, plus fault injection.
 | TEST-024 | Pohon besar (~5.000 node) editing | Tidak ada UI block > 200 ms dalam skenario ter-skrip. |
 | TEST-025 | Kebenaran saran aksesibilitas | Kasus yang ditandai/terlewat cocok dengan heuristik terdokumentasi; tidak pernah diterapkan otomatis. |
 | TEST-026 | Atomicity saat dimatikan paksa | Konten file adalah lama atau baru, tidak pernah parsial. |
+| TEST-027 | Validasi input IPC (payload malformed/palsu, traversal via IPC) | Main process menolak payload tidak valid dan channel tak dikenal; tanpa akses di luar root; tanpa crash. |
+| TEST-028 | Konfigurasi hardening renderer | Assert otomatis bahwa renderer UI dan preview berjalan dengan `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`; tanpa global Node di preview. |
+| TEST-029 | Pemblokiran navigasi dan jendela baru | Preview tidak dapat bernavigasi menjauh, membuka jendela baru, atau memicu prompt izin OS. |
+| TEST-030 | Permukaan preload | Hanya API yang di-allowlist yang diekspos; `ipcRenderer`/`require`/`process` tidak ada. |
+| TEST-031 | Packaging smoke test (Windows x64) | Build terkemas diluncurkan, membuka proyek, menyimpan secara atomik, dan keluar, offline. |
+| TEST-032 | Pemulihan crash renderer | Crash renderer yang dipaksa tidak menghilangkan data yang tersimpan dan UI pulih (`NFR-017`). |
+| TEST-033 | Penanganan proyek malformed/berbahaya | Parsing terbatas; tanpa crash; fallback read-only/render terakhir yang baik; tanpa panggilan istimewa. |
 
 ### 15.3 Cakupan dan gerbang
 
 - Suite sync + parser + preservasi bersifat **release-blocking** untuk Phase 0 dan 3.
-- Test keamanan (`TEST-017`..`TEST-021`) bersifat release-blocking untuk setiap phase.
+- Test keamanan (`TEST-017`..`TEST-021` dan `TEST-027`..`TEST-030`) bersifat release-blocking untuk setiap phase.
 - Target coverage bersifat provisional: usahakan branch coverage tinggi pada modul parser/sync; coverage
   UI diukur lewat penyelesaian journey daripada persentase (`ASM-001`).
 
@@ -1687,19 +1955,20 @@ risiko dieliminasi atau dibatasi.
 | ID | Risiko | P | I | Mitigasi | Validasi |
 |---|---|---|---|---|---|
 | RISK-001 | Sinkronisasi/write-back merusak source (formatting, komentar, sintaks tak didukung). | High | High | Patch rentang surgical; source anchor; test preservasi; validate-before-write; backup; tolak edit yang mengharuskan tulis ulang sintaks tak didukung. | Korpus round-trip Phase 0; `TEST-001`..`TEST-004`, `TEST-011`, `TEST-016`. |
-| RISK-002 | Sandbox preview gagal; kode proyek menjangkau privilege desktop. | Medium | High | Konteks preview khusus tanpa capability; iframe tanpa same-origin; protokol ter-scope; CSP; no-eval; test escape. | `TEST-017`, `TEST-018` harus gagal escape. |
+| RISK-002 | Isolasi preview gagal; kode proyek menjangkau privilege desktop. | Medium | High | Renderer preview terpisah tanpa preload/IPC istimewa; protokol read-only ter-scope; CSP; penolakan navigasi/jendela; no-eval; test escape. | `TEST-017`, `TEST-018`, `TEST-028`, `TEST-029` harus gagal escape. |
 | RISK-003 | Sync engine terlalu kompleks; scope meledak; MVP molor parah. | High | High | Batasi MVP ke HTML/CSS/JS biasa, set properti terbatas, satu halaman aktif + stylesheet tertaut; tunda komponen/token. | Go/no-go Phase 0; review scope MVP. |
-| RISK-004 | Ketidakcocokan paritas render antara preview Astra dan browser target. | Medium | Medium | Pakai engine asli (WebView2); dokumentasikan fitur yang didukung; snapshot paritas; degrade dengan mulus. | `TEST-016`, `SM-004`. |
-| RISK-005 | Celah otomasi webview Tauri memblok E2E yang andal. | Medium | Medium | Fallback harness browser dengan IPC dimock; jaga test integrasi shell tetap kecil. | Spike Playwright+Tauri di Phase 1 (`OQ-013`). |
+| RISK-004 | Ketidakcocokan paritas render antara preview Astra dan browser target. | Medium | Medium | Pakai engine asli (versi Chromium yang di-pin bersama Electron); dokumentasikan fitur yang didukung; snapshot paritas; degrade dengan mulus. | `TEST-016`, `SM-004`. |
+| RISK-005 | Isu packaging atau otomasi E2E Electron memblok pengiriman yang andal. | Medium | Medium | Pin versi Electron; pakai biner prebuilt; packaging smoke test di CI; pertahankan fallback browser untuk alur UI-saja. | Spike packaging/E2E Phase 1 (`OQ-013`). |
 | RISK-006 | Race konflik (edit eksternal + edit Astra) menyebabkan kehilangan. | Medium | High | Deteksi berbasis hash; prompt konflik; tampilan compare; tanpa auto-overwrite. | `TEST-007`, `TEST-008`, `SM-010`. |
 | RISK-007 | Pengguna merasa tool tidak mampu mengedit proyek nyata mereka (berantakan/kompleks). | Medium | High | Desain preservation-first; read-only untuk konstruksi tak didukung; buka korpus nyata di Phase 1. | `SM-003`, `SM-004`. |
-| RISK-008 | Kerentanan dependency atau isu supply-chain. | Medium | Medium | Dep minimal ter-pin; audit di CI; tanpa pemuatan aset remote. | Gerbang `cargo audit`/`npm audit`; `TEST-021`. |
+| RISK-008 | Kerentanan dependency atau isu supply-chain. | Medium | Medium | Dep minimal ter-pin; `npm audit` di CI; tanpa pemuatan aset remote. | Gerbang `npm audit`; `TEST-021`. |
 | RISK-009 | Isu packaging/signing Windows (peringatan SmartScreen). | Medium | Low/Medium | Spike packaging CI lebih awal; dokumentasikan perilaku unsigned; kejar signing. | Test installer Phase 1 (`OQ-011`). |
 | RISK-010 | Performa kolaps pada proyek besar. | Medium | Medium | Tree ter-virtualisasi; lazy loading; parse ter-debounce; fallback file besar. | `TEST-023`, `TEST-024`, NFR-004/005. |
 | RISK-011 | Pengguna salah memahami perilaku a11y saran/tanpa-auto-apply. | Low | Medium | Label "hanya saran" yang jelas; tidak pernah auto-fix; jelaskan perbaikan yang disarankan. | `TEST-025`, review usability. |
 | RISK-012 | AI (nanti) memperkenalkan non-determinisme/masalah privasi. | Medium | Medium | Hanya opt-in; adapter provider; gerbang review diff; tanpa shell; inti berfungsi tanpanya. | Test Phase 6. |
 | RISK-013 | Over-scoping menuju pengganti Figma/IDE. | Medium | Medium | Non-goals eksplisit; tegakkan keputusan scope MVP. | Review roadmap. |
 | RISK-014 | Kehilangan data akibat crash sebelum autosave. | Medium | Medium | Jurnal/backup recovery best-effort (`FR-A04b`). | Test crash-recovery. |
+| RISK-015 | Jejak sumber daya Electron (memori, ukuran distribusi) merugikan mesin kelas bawah atau adopsi. | Medium | Medium | Target terukur (`NFR-004`, `NFR-018`); inisialisasi preview secara lazy; gunakan ulang satu renderer preview; dokumentasikan jejaknya. | `NFR-004`, `NFR-018`, `TEST-023`. |
 
 ---
 
@@ -1712,11 +1981,12 @@ risiko dieliminasi atau dibatasi.
 | ASM-001 | Semua angka performa/success bersifat provisional sampai diukur; "smooth" diganti target terukur. | Target mungkin tidak realistis; kalibrasi ulang setelah Phase 0. |
 | ASM-002 | Tidak perlu database; file + config store kecil cukup. | Mungkin perlu index untuk proyek sangat besar (tambahkan hanya jika terukur). |
 | ASM-003 | MVP menyasar HTML/CSS/JS biasa, satu halaman aktif + stylesheet tertaut. | Sinkronisasi multi-halaman/global menambah kompleksitas (sudah P1 via FR-G11). |
-| ASM-004 | Windows/WebView2 adalah satu-satunya platform MVP. | Cross-platform nanti memerlukan validasi ulang fs, watcher, dan packaging. |
+| ASM-004 | Windows x64 dengan Chromium (Electron) yang di-pin dan di-bundel adalah satu-satunya platform MVP. | Cross-platform nanti memerlukan validasi ulang fs, watcher, dan packaging. |
 | ASM-005 | Pengguna menerima penghindaran atribut `style`: edit lebih memilih rule stylesheet secara default. | Sebagian pengguna lebih suka inline; kebijakan dapat dikonfigurasi (FR-G10). |
 | ASM-006 | Palet DnD terkurasi cukup untuk MVP meski library penuh/authoring komponen ditunda. | Jika tidak, scope DnD MVP harus ditinjau ulang. |
 | ASM-007 | Temuan aksesibilitas harus saran dan tidak pernah auto-apply. | Jika pengguna minta auto-fix, tambahkan batch fix eksplisit dan dapat direview nanti. |
 | ASM-008 | Monaco dapat dibundel sepenuhnya offline tanpa CDN. | Jika tidak, janji offline (FR-K01) berisiko; pakai editor lokal lain. |
+| ASM-009 | Set dependency MVP mengirim biner prebuilt, sehingga tidak diperlukan compiler native (MSVC/Windows SDK); ini dikonfirmasi dengan mencoba melakukan build. | Jika addon native diperkenalkan, kebutuhan build tool berubah dan harus didokumentasikan. |
 
 ### 18.2 Pertanyaan terbuka (dengan default sementara agar tidak memblok)
 
@@ -1734,8 +2004,9 @@ risiko dieliminasi atau dibatasi.
 | OQ-010 | Format portabel apa untuk komponen/token? | CSS custom property + HTML/JSON terdokumentasi; putuskan di Phase 5. |
 | OQ-011 | Apakah rilis akan di-code-sign? | Asumsikan unsigned awalnya; dokumentasikan; kejar sertifikat. |
 | OQ-012 | Monetisasi masa depan yang tidak mengunci editing inti? | Jaga inti gratis/offline; tier berbayar apa pun opsional dan aditif. |
-| OQ-013 | Apakah Playwright+Tauri cukup untuk E2E? | Asumsikan sebagian; pakai fallback harness browser; spike di Phase 1. |
+| OQ-013 | Apakah dukungan Electron dari Playwright cukup untuk E2E, dan tool packaging mana (Electron Forge vs. electron-builder) yang kita standarkan? | Asumsikan Playwright + Electron untuk alur aplikasi; pilih tool packaging di Phase 1. |
 | OQ-014 | Bagaimana node DOM yang dihasilkan runtime direpresentasikan (read-only vs. disembunyikan)? | Read-only di tree; tidak pernah ditulis ke source. |
+| OQ-015 | Mana model isolasi yang lebih baik: renderer preview terpisah atau iframe ter-sandbox? | Asumsikan renderer Electron terpisah; validasi dengan test escape (`TEST-017`, `TEST-018`). |
 
 ---
 
@@ -1761,7 +2032,7 @@ yang membuka proyek dari disk tanpa Astra.
 | AC-013 | Drag insert/move/reorder dasar bekerja dengan indikator jelas dan validasi nesting HTML; drop tidak valid ditolak dengan pesan. |
 | AC-014 | Pengecekan a11y saran (alt text, nama aksesibel, label form) menandai isu, memilih elemen saat diklik, dan tidak pernah memodifikasi source. |
 | AC-015 | Dengan jaringan dimatikan, semua alur MVP bekerja; mengaktifkan jaringan tidak menyebabkan egress senyap. |
-| AC-016 | Preview tidak dapat memanggil perintah Tauri atau menjangkau konteks aplikasi; upaya traversal diblokir (`TEST-017/018`). |
+| AC-016 | Preview tidak dapat memanggil IPC istimewa atau menjangkau main process/renderer UI; upaya path traversal dan navigasi diblokir (`TEST-017/018/027/029`). |
 | AC-017 | Build Windows terkemas terpasang dan berjalan offline di mesin Windows 10/11 bersih. |
 
 ---
@@ -1773,13 +2044,13 @@ yang membuka proyek dari disk tanpa Astra.
 | ID | Item |
 |---|---|
 | DoD-001 | Semua kriteria penerimaan MVP (AC-001..AC-017) lulus di CI jika dapat diotomasi dan di verifikasi manual jika tidak. |
-| DoD-002 | Suite release-blocking hijau: parser/preservasi, sync, atomicity, keamanan (`TEST-001`..`TEST-021`). |
+| DoD-002 | Suite release-blocking hijau: parser/preservasi, sync, atomicity, keamanan, dan hardening/IPC Electron (`TEST-001`..`TEST-021` dan `TEST-027`..`TEST-033`). |
 | DoD-003 | Nol defect korupsi source yang diketahui; nol defect penimpaan senyap. |
 | DoD-004 | Dokumentasi: panduan pengguna (buka/edit/simpan), perilaku sync + kebijakan (style vs. inline, formatting), dan daftar "apa yang tidak akan disentuh Astra". |
 | DoD-005 | Build Windows terkemas dan dapat diinstal ada serta berjalan offline; instal/luncur diverifikasi di mesin bersih. |
 | DoD-006 | Paritas render terdokumentasi: fitur yang didukung vs. tidak didukung didaftar secara eksplisit. |
-| DoD-007 | Review keamanan selesai: sandbox, penanganan path, sumber daya eksternal, validasi impor, tanpa egress (`SEC-001`..`SEC-014` ditinjau). |
-| DoD-008 | TypeScript strict + lint + `cargo clippy` bersih; dependency graph modul tanpa siklus inti (`NFR-010`). |
+| DoD-007 | Review keamanan selesai: isolasi preview, hardening renderer, validasi IPC, penanganan path, sumber daya eksternal, validasi impor, tanpa egress (`SEC-001`..`SEC-022` ditinjau). |
+| DoD-008 | TypeScript strict + lint bersih di main, preload, dan renderer; dependency graph modul tanpa siklus inti (`NFR-010`). |
 | DoD-009 | Suite E2E offline lulus dengan jaringan dimatikan (`TEST-022`). |
 | DoD-010 | Target performa provisional (NFR-001..NFR-005) diukur dan dipenuhi atau dinegosiasikan ulang secara eksplisit dengan bukti. |
 | DoD-011 | Metadata `.astra/` terbukti non-esensial: menghapusnya tidak merusak proyek. |
@@ -1810,13 +2081,13 @@ eksplisit dan terdokumentasi.
 | Aksesibilitas | FR-J01..FR-J06 |
 | Local-first | FR-K01..FR-K06 |
 | AI opsional | FR-L01..FR-L02 |
-| Non-fungsional | NFR-001..NFR-015 |
+| Non-fungsional | NFR-001..NFR-018 |
 | UI/UX | UX-001..UX-008 |
-| Keamanan | SEC-001..SEC-014 |
-| Testing | TEST-001..TEST-026 |
+| Keamanan | SEC-001..SEC-022 |
+| Testing | TEST-001..TEST-033 |
 | Success | SM-001..SM-012 |
-| Risiko | RISK-001..RISK-014 |
-| Asumsi/Pertanyaan | ASM-001..ASM-008, OQ-001..OQ-014 |
+| Risiko | RISK-001..RISK-015 |
+| Asumsi/Pertanyaan | ASM-001..ASM-009, OQ-001..OQ-015 |
 | Penerimaan MVP | AC-001..AC-017 |
 | Definition of done | DoD-001..DoD-012 |
 
@@ -1840,8 +2111,9 @@ eksplisit dan terdokumentasi.
 
 ## Lampiran C - Pemberitahuan Eksplisit Belum Diimplementasikan
 
-Untuk menegaskan kembali status dokumen: **Astra belum diimplementasikan.** Tidak ada kode aplikasi,
-tidak ada dependency yang diinstal, dan tidak ada konfigurasi di direktori proyek (`D:\code-web\Astra`).
+Untuk menegaskan kembali status dokumen: **Logika aplikasi Astra belum diimplementasikan.**
+Direktori proyek (`D:\code-web\Astra`) paling banyak berisi scaffold proyek (tooling dan dependency);
+tidak ada fitur yang dijelaskan di sini yang dibangun atau diuji.
 PRD ini adalah materi perencanaan yang dimaksudkan untuk memandu arsitektur, perencanaan implementasi,
 dan pengujian penerimaan. Tidak ada bagian dari dokumen ini yang boleh dibaca sebagai bukti bahwa suatu
 requirement telah dibangun atau diuji. Ketika implementasi dimulai, dokumen ini harus direkonsiliasi

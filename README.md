@@ -6,15 +6,29 @@ Astra is a local-first desktop application for designing websites visually while
 **real source code** (HTML/CSS/JS). No account, no mandatory cloud, no proprietary format.
 Your files stay readable, portable and Git-friendly.
 
-Windows 10/11 · Tauri 2 · React + TypeScript + Rust
+Windows 10/11 · Electron 44 · React 19 + TypeScript + Vite
 
 ---
 
 ## Status
 
-**Foundation / planning.** Application logic has not been implemented yet — this repository
-currently contains the scaffold, dependency setup and tooling (Phase 0). See the PRD for the
-full plan and the vault notes for the roadmap.
+**Phase 0 prerequisites — scaffold complete, product not yet started.**
+
+This repository currently contains the Electron scaffold, the hardened window/IPC contract, the
+packaging configuration and the CI skeleton. The visual editor, the parser layer and the
+synchronisation engine described in the PRD **have not been implemented yet**.
+
+Everything below has been verified end-to-end on Windows:
+
+| Gate | Result |
+| --- | --- |
+| `npm run typecheck` | 0 errors |
+| `npm run test` | 50 passing, 5 files |
+| `npm run build` | main 8.75 kB · preload 1.01 kB · renderer 568.78 kB |
+| `npm run test:e2e` | 4 passing against the real Electron shell |
+| `npm run package` | `release/win-unpacked`, app.asar 1.52 MB |
+| packaged exe | boots, renderer sandboxed (`--enable-sandbox`) |
+| `npm run dev` | boots, clean shutdown |
 
 ---
 
@@ -22,29 +36,31 @@ full plan and the vault notes for the roadmap.
 
 | Area | Choice |
 | --- | --- |
-| Desktop shell | Tauri 2 |
-| Frontend | React 19 + TypeScript + Vite |
-| Native backend | Rust |
+| Desktop shell | Electron 44 (main / preload / renderer) |
+| Frontend | React 19 + TypeScript + Vite 8 |
+| Build | electron-vite 6 |
+| Packaging | electron-builder 26 (NSIS) |
 | Code editor | Monaco |
 | HTML parser | parse5 |
-| CSS parser | PostCSS |
+| CSS parser | PostCSS + postcss-safe-parser |
 | Drag & drop | dnd-kit |
 | State | Zustand |
 | Styling | Tailwind CSS v4 |
-| Unit tests | Vitest |
-| E2E tests | Playwright |
+| Unit tests | Vitest 5 |
+| E2E tests | Playwright (`_electron`) |
 
 ---
 
 ## Prerequisites
 
 - **Node.js** LTS + npm
-- **Rust** toolchain (rustup / cargo) — required to build and run the Tauri backend
-- **WebView2 Runtime** (preinstalled on Windows 11)
 - **Git**
 
-> Rust is required to run `npm run tauri:dev` / `npm run tauri:build`. The frontend
-> (`npm run dev`, `npm run build`, `npm run test`) works without Rust.
+That is the whole list.
+
+> **No Rust, no MSVC, no Windows SDK.** Astra has no native addons, so `npmRebuild: false` is set
+> in `electron-builder.yml` and packaging never invokes `node-gyp`. A dependency that requires a
+> compiler toolchain to install is a rejection, not a setup step (PRD ASM-009).
 
 ---
 
@@ -52,46 +68,94 @@ full plan and the vault notes for the roadmap.
 
 ```bash
 npm install          # install dependencies
-npm run dev          # frontend only (Vite, http://localhost:1420)
-npm run tauri:dev    # full desktop app (requires Rust)
+npm run dev          # desktop app with HMR (renderer on http://localhost:5173)
 ```
 
 ## Scripts
 
 | Script | Purpose |
 | --- | --- |
-| `npm run dev` | Vite dev server (port 1420) |
-| `npm run build` | Type-check + production frontend build |
+| `npm run dev` | Electron shell + electron-vite dev server (port 5173) |
+| `npm run build` | Production build of all three processes into `out/` |
 | `npm run typecheck` | TypeScript only (`tsc --noEmit`) |
 | `npm run test` | Vitest (unit / parser / sync) |
 | `npm run test:watch` | Vitest watch mode |
-| `npm run test:e2e` | Playwright (browser harness) |
-| `npm run tauri:dev` | Run the desktop app (requires Rust) |
-| `npm run tauri:build` | Build the Windows installer (requires Rust) |
+| `npm run test:e2e` | Build, then Playwright against the real Electron shell |
+| `npm run package` | Build + unpacked Windows build → `release/win-unpacked` |
+| `npm run make` | Build + NSIS installer → `release/` |
 
 ---
 
 ## Project Structure
 
+Astra follows the four-layer split from PRD §11.2. Dependencies point downward only —
+`src/core` imports nothing from Electron or React.
+
 ```text
 astra/
-├── src/                    # React + TypeScript frontend
-│   ├── components/         # editor, toolbar, panels, canvas, ui
-│   ├── model/              # internal document model & addressing
-│   ├── parsers/            # html (parse5), css (postcss)
-│   ├── sync/               # synchronization engine, patching, conflicts
-│   ├── history/            # undo/redo
-│   ├── store/              # zustand state
-│   ├── lib/                # utilities, IPC wrappers
-│   └── styles/             # Tailwind entry + design tokens
-├── src-tauri/              # Rust backend (Tauri 2)
-│   ├── src/                # commands: fs, watcher, hashing, atomic write
-│   └── capabilities/       # least-privilege capability config
-├── tests/                  # Vitest unit tests
-├── e2e/                    # Playwright tests
-├── fixtures/               # synthetic test projects
-└── docs/                   # PRD and engineering docs
+├── electron.vite.config.mts  # three-process build, CSP injection
+├── electron-builder.yml      # packaging (npmRebuild: false)
+├── src/
+│   ├── main/                 # Electron main process
+│   │   ├── index.ts          #   hardened BrowserWindow
+│   │   ├── ipc.ts            #   channel registration
+│   │   ├── security.ts       #   navigation / window-open denial
+│   │   ├── trusted-url.ts    #   renderer origin allowlist
+│   │   └── validation.ts     #   IPC payload validation
+│   ├── preload/              # contextBridge allowlist → window.astra
+│   │   ├── index.ts
+│   │   └── api.ts            #   typed bridge contract (source of truth)
+│   ├── renderer/             # React app
+│   │   ├── index.html
+│   │   └── src/
+│   ├── shared/               # used by all three processes
+│   │   ├── ipc.ts            #   channel names + payload types
+│   │   └── csp.ts            #   dev / prod Content-Security-Policy
+│   └── core/                 # pure TS: model, parsers, sync, history, lib
+├── tests/                    # Vitest unit tests
+├── e2e/                      # Playwright (real Electron shell)
+├── .github/workflows/ci.yml  # CI skeleton
+└── docs/                     # PRD (EN / ID)
 ```
+
+### Path aliases
+
+`@/*` → `src/renderer/src/*` · `@core/*` → `src/core/*`
+
+These are declared in **three** places that must stay in sync: `tsconfig.json`,
+`electron.vite.config.mts` and `vitest.config.mts`. Drift between them compiles cleanly and only
+fails at runtime.
+
+---
+
+## Security Posture
+
+The hardening in `src/main/index.ts` is intentional, not decorative (PRD §14.4, SEC-001..022):
+
+- `nodeIntegration: false` · `contextIsolation: true` · `sandbox: true` · `webSecurity: true`
+- Restrictive CSP injected at build time — production sets `script-src 'self'` and `frame-src 'none'`
+- The renderer may only load one URL (packaged `file://`, or the dev server in `npm run dev`)
+- Navigation and window creation outside that URL are denied
+- The preload publishes only `window.astra.ping()` / `window.astra.getAppVersion()`
+- Every IPC payload is validated on arrival and rejected by type, not coerced
+
+The E2E suite asserts these rather than trusting them: it checks that `require`, `module`,
+`process` and `ipcRenderer` are all `undefined` inside the renderer, and that a validated IPC
+round trip still works across the sandbox boundary.
+
+> The sandboxed preview iframe (PRD §11.2) will need its **own** separately-scoped policy. It must
+> not be added by loosening `frame-src` on this one.
+
+---
+
+## Known Debt
+
+- **No application icon** — electron-builder falls back to the default Electron icon.
+- **8 moderate npm advisories** — the `sprintf-js` chain pulled in via `electron-builder`
+  → `app-builder-lib` → `@electron/get` → `global-agent` → `roarr`. Dev-only tooling, no patched
+  version exists, and the shipped asar contains no `node_modules` at all. CI blocks on
+  `--audit-level=critical`; revisit when `@electron/get` >= 5 ships.
+- **`docs/PRD.md` and `docs/PRD.id.md`** are copies of the vault PRDs, which remain authoritative.
 
 ---
 
