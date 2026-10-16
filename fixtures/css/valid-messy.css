@@ -1,0 +1,32 @@
+/* Astra stylesheet fixture: messy but valid. */
+:root {
+  --accent: #6d28d9;
+  --space: 4px;
+}
+
+/* A comment between rules */
+.card, .card:hover {
+  color: var(--accent);
+  margin: calc(var(--space) * 2) 0 !important;
+  background: url("data:image/svg+xml;utf8,<svg></svg>") no-repeat;
+}
+
+@media (min-width: 40rem) {
+  .card {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@supports (display: grid) {
+  .grid { display: grid }
+}
+
+.anim {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

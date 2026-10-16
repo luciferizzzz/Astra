@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Astra preview sandbox escape attempt</title>
+</head>
+<body>
+<!--
+  This document plays the role of untrusted project markup. Every probe below
+  is an escape a compromised preview must not be able to make. The result object
+  is read back by e2e/sandbox.spec.ts and asserted to be uniformly closed.
+-->
+<h1>hostile fixture</h1>
+<script>
+  (function () {
+    var probes = {};
+    function capture(name, fn) {
+      try {
+        probes[name] = fn();
+      } catch (error) {
+        probes[name] = "threw:" + (error && error.message ? error.message : String(error));
+      }
+    }
+
+    capture("hasRequire", function () {
+      return typeof require !== "undefined";
+    });
+    capture("hasProcess", function () {
+      return typeof process !== "undefined";
+    });
+    capture("hasModule", function () {
+      return typeof module !== "undefined";
+    });
+    capture("hasBuffer", function () {
+      return typeof Buffer !== "undefined";
+    });
+    capture("hasIpcRenderer", function () {
+      return typeof window.ipcRenderer !== "undefined";
+    });
+    capture("hasAstraBridge", function () {
+      return typeof window.astra !== "undefined";
+    });
+    capture("hasElectronBridge", function () {
+      return typeof window.electron !== "undefined";
+    });
+    capture("openDenied", function () {
+      var opened = window.open("about:blank");
+      return opened === null || opened === undefined;
+    });
+    capture("webviewApiAbsent", function () {
+      // With `webviewTag: false` the element is inert: it has no loadURL.
+      return typeof document.createElement("webview").loadURL !== "function";
+    });
+
+    window.__astraProbe = probes;
+  })();
+</script>
+</body>
+</html>

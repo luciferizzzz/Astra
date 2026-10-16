@@ -2,6 +2,7 @@ import { BrowserWindow, app, session } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { registerIpcHandlers } from "./ipc";
+import { openPreview } from "./preview";
 import { hardenSession, hardenWebContents } from "./security";
 import type { TrustedRendererTarget } from "./trusted-url";
 
@@ -84,6 +85,26 @@ app.whenReady().then(() => {
     }
   });
 });
+
+/**
+ * Test-only hook for the Phase 0 sandbox spike.
+ *
+ * Playwright drives the main process through `app.evaluate`, which cannot reach
+ * into this module's scope. When `ASTRA_E2E=1` the entry point publishes a
+ * single function on `globalThis` so `e2e/sandbox.spec.ts` can open a preview of
+ * a hostile fixture and probe it. The hook is inert in every normal run.
+ */
+function installPreviewTestSeam(): void {
+  if (process.env["ASTRA_E2E"] !== "1") {
+    return;
+  }
+  const scope = globalThis as { __astraOpenPreview?: (url: string) => number };
+  scope.__astraOpenPreview = (url) => openPreview(url).id;
+}
+
+// Installed at module load rather than inside `whenReady`, so a test that
+// evaluates the main process as soon as it launches cannot miss it.
+installPreviewTestSeam();
 
 app.on("window-all-closed", () => {
   mainWindow = null;

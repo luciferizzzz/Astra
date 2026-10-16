@@ -1,0 +1,7 @@
+/* c1 */
+.a{color:red;}
+
+/* c2 */
+.b {
+  /* inner */ color /* mid */: /* before value */ green /* after value */;
+}

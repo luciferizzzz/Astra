@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+  var markup = "<div>not an element</div>";
+  if (a < b && c > d) { console.log("compare"); }
+</script>
+<style>
+  /* the selector below must survive untouched */
+  .a > .b::after { content: "}"; }
+</style>
+</head>
+<body>
+<textarea rows="3">line < one &amp; two</textarea>
+<title>Raw &amp; &lt;title&gt;</title>
+</body>
+</html>
