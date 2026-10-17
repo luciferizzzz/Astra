@@ -1,0 +1,78 @@
+import { useEffect, useState } from "react";
+
+type BridgeStatus = "probing" | "connected" | "unavailable";
+
+/**
+ * The status bar: liveness and posture.
+ *
+ * This is where the renderer proves the path that matters most — a sandboxed,
+ * context-isolated renderer reaching a validated IPC handler in the main process
+ * through the preload allowlist — and where it states the security posture out
+ * loud rather than leaving it implicit. A shell that looks connected when the
+ * bridge is absent is worse than one that says nothing.
+ */
+export default function StatusBar() {
+  const [status, setStatus] = useState<BridgeStatus>("probing");
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const bridge = window.astra;
+
+    if (!bridge) {
+      // Rendered from a plain browser against the Vite dev server, where there
+      // is no preload behind the page. Say so rather than look connected.
+      setStatus("unavailable");
+    } else {
+      void bridge
+        .ping("renderer-ready")
+        .then((reply) => {
+          if (!cancelled && reply.pong) setStatus("connected");
+        })
+        .catch(() => {
+          if (!cancelled) setStatus("unavailable");
+        });
+
+      void bridge
+        .getAppVersion()
+        .then((version) => {
+          if (!cancelled) setAppVersion(version);
+        })
+        .catch(() => {
+          if (!cancelled) setAppVersion(null);
+        });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <footer
+      aria-label="Status bar"
+      className="flex shrink-0 items-center gap-3 border-t border-border-subtle bg-surface-1 px-3 py-1 text-[11px] text-neutral-500"
+    >
+      <span>Electron foundation</span>
+
+      <span aria-hidden="true" className="h-3 w-px bg-border-subtle" />
+
+      <span>context isolation on · sandbox on</span>
+
+      <dl className="ml-auto flex items-center gap-4">
+        <div className="flex items-baseline gap-1.5">
+          <dt className="text-neutral-600">Bridge</dt>
+          <dd className="text-neutral-400" data-testid="bridge-status">
+            {status}
+          </dd>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          <dt className="text-neutral-600">Version</dt>
+          <dd className="text-neutral-400" data-testid="app-version">
+            {appVersion ?? "—"}
+          </dd>
+        </div>
+      </dl>
+    </footer>
+  );
+}
