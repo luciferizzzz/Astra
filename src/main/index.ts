@@ -144,11 +144,16 @@ app.whenReady().then(async () => {
   hardenSession(session.defaultSession);
   registerIpcHandlers(target, settings);
 
+  // Installed before anything is awaited, not after. The menu needs neither the
+  // stored settings nor the window — a click resolves `mainWindow` at the moment
+  // it is pressed — so queuing it behind `settings.read()` would leave a window
+  // at the ready in which the application has no menu at all.
+  installApplicationMenu();
+
   // Read the stored theme once so the window's first frame already matches it.
   const stored = await settings.read();
   const backgroundColor = surfaceColorFor(stored.theme);
   mainWindow = createMainWindow(target, backgroundColor);
-  installApplicationMenu();
 
   // macOS convention: reopen the window when the dock icon is clicked.
   app.on("activate", () => {

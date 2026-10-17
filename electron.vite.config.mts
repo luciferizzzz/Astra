@@ -46,6 +46,31 @@ export default defineConfig({
         "@": rendererSrc,
         "@core": coreSrc,
       },
+      // Belt and braces: if anything ever resolves `react` outside the dep
+      // graph below (a nested package, a `?url` import), it still lands on the
+      // same copy every other module uses.
+      dedupe: ["react", "react-dom"],
+    },
+    optimizeDeps: {
+      // React and the store have to be in the optimizer's *initial* set.
+      //
+      // Vite discovers dependencies by scanning the entry graph, and anything it
+      // finds later triggers a mid-session re-optimization: it rewrites the same
+      // `node_modules/.vite/deps` files under a new hash and reloads the page.
+      // Modules already transformed under the old hash keep pointing at the old
+      // `?v=` query while the files underneath have been replaced, so `zustand`
+      // and `react-dom` end up importing two different instances of the shared
+      // React chunk — which surfaces as "Invalid hook call" (two copies of
+      // React) only under `npm run dev`. Declaring the graph here means there is
+      // nothing left to discover, so the optimizer never re-runs.
+      include: [
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "zustand",
+      ],
     },
     build: { sourcemap: true },
   },
