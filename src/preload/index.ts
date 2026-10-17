@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC_CHANNELS } from "../shared/ipc";
+import { IPC_CHANNELS, isMenuCommand, type MenuCommand } from "../shared/ipc";
+import type { AstraSettings } from "../shared/settings";
 import type { AstraApi } from "./api";
 
 /**
@@ -16,6 +17,20 @@ import type { AstraApi } from "./api";
 const api: AstraApi = {
   ping: (nonce?: string) => ipcRenderer.invoke(IPC_CHANNELS.appPing, { nonce }),
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.appGetVersion),
+  getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),
+  updateSettings: (patch: Partial<AstraSettings>) =>
+    ipcRenderer.invoke(IPC_CHANNELS.settingsUpdate, { patch }),
+  onMenuCommand: (listener: (command: MenuCommand) => void) => {
+    const handler = (_event: unknown, command: unknown): void => {
+      // The main process is trusted, but the allowlist stays closed anyway: a
+      // value outside the known set is dropped rather than handed to the app.
+      if (isMenuCommand(command)) listener(command);
+    };
+    ipcRenderer.on(IPC_CHANNELS.menuCommand, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.menuCommand, handler);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld("astra", api);

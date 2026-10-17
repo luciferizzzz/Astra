@@ -22,7 +22,7 @@ export default function Inspector() {
             disabled={index !== 0}
             aria-current={index === 0 ? "true" : undefined}
             className={`rounded px-2 py-1 text-xs ${
-              index === 0 ? "bg-surface-2 text-neutral-100" : "text-neutral-600 opacity-60"
+              index === 0 ? "bg-surface-2 text-fg" : "text-fg-faint opacity-60"
             }`}
           >
             {tab}
@@ -31,7 +31,7 @@ export default function Inspector() {
       </nav>
 
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-        <p className="text-center text-xs leading-relaxed text-neutral-600">
+        <p className="text-center text-xs leading-relaxed text-fg-faint">
           Select an element on the canvas to edit it.
         </p>
       </div>

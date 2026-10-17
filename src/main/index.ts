@@ -1,9 +1,13 @@
-import { BrowserWindow, app, session } from "electron";
+import { BrowserWindow, Menu, app, dialog, nativeTheme, session } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { IPC_CHANNELS, MENU_COMMANDS, type MenuCommand } from "../shared/ipc";
+import type { SettingsTheme } from "../shared/settings";
 import { registerIpcHandlers } from "./ipc";
+import { buildMenuTemplate } from "./menu";
 import { openPreview } from "./preview";
 import { hardenSession, hardenWebContents } from "./security";
+import { createSettingsStore } from "./settings-store";
 import type { TrustedRendererTarget } from "./trusted-url";
 
 /**
@@ -31,7 +35,18 @@ function resolveRendererTarget(): TrustedRendererTarget {
   return devServerUrl ? { devServerUrl, fileUrl } : { fileUrl };
 }
 
-function createMainWindow(target: TrustedRendererTarget): BrowserWindow {
+/**
+ * The surface colour for a theme, in the same values the renderer's tokens use.
+ *
+ * Painted before the renderer has loaded, so the window matches the interface
+ * the moment it appears instead of flashing the wrong background.
+ */
+function surfaceColorFor(theme: SettingsTheme): string {
+  const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
+  return dark ? "#0a0a0b" : "#f4f4f5";
+}
+
+function createMainWindow(target: TrustedRendererTarget, backgroundColor: string): BrowserWindow {
   const window = new BrowserWindow({
     title: "Astra",
     width: 1440,
@@ -41,8 +56,9 @@ function createMainWindow(target: TrustedRendererTarget): BrowserWindow {
     center: true,
     // Revealed on `ready-to-show`, so the user never sees a blank frame.
     show: false,
-    // Matches --color-surface-0, so the window background is never white.
-    backgroundColor: "#0a0a0b",
+    // Matches --color-surface-0 for the stored theme, so the first painted frame
+    // is never the wrong colour.
+    backgroundColor,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -71,17 +87,73 @@ function createMainWindow(target: TrustedRendererTarget): BrowserWindow {
   return window;
 }
 
-app.whenReady().then(() => {
+/**
+ * Forwards a menu command to the renderer.
+ *
+ * The menu lives in the main process because that is where Electron menus live,
+ * but the actions name renderer state (a panel, a viewport preset, a dialog).
+ * Rather than keep a second copy of that state here, the click is forwarded and
+ * the renderer decides. Guarded on `isDestroyed` because the menu stays live for
+ * a moment after the window is gone.
+ */
+function sendMenuCommand(command: MenuCommand): void {
+  const contents = mainWindow?.webContents;
+  if (contents && !contents.isDestroyed()) {
+    contents.send(IPC_CHANNELS.menuCommand, command);
+  }
+}
+
+/** The About dialog — deliberately plain, and always offline. */
+async function showAboutDialog(): Promise<void> {
+  const options = {
+    type: "info" as const,
+    title: "About Astra",
+    message: `Astra ${app.getVersion()}`,
+    detail:
+      "Local-first desktop visual web designer.\n" +
+      "Design visually — and own your code.\n\n" +
+      "No account. No telemetry. Nothing leaves your machine.",
+    buttons: ["Close"],
+    noLink: true,
+  };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    await dialog.showMessageBox(mainWindow, options);
+  } else {
+    await dialog.showMessageBox(options);
+  }
+}
+
+/** Installs the native application menu (FR-A02). */
+function installApplicationMenu(): void {
+  const template = buildMenuTemplate({
+    // Reload and DevTools only make sense against the dev server.
+    isDevelopment: !app.isPackaged,
+    handlers: {
+      onOpenSettings: () => sendMenuCommand(MENU_COMMANDS.openSettings),
+      onAbout: () => void showAboutDialog(),
+      onCommand: (command) => sendMenuCommand(command),
+    },
+  });
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+app.whenReady().then(async () => {
   const target = resolveRendererTarget();
+  const settings = createSettingsStore(app.getPath("userData"));
 
   hardenSession(session.defaultSession);
-  registerIpcHandlers(target);
-  mainWindow = createMainWindow(target);
+  registerIpcHandlers(target, settings);
+
+  // Read the stored theme once so the window's first frame already matches it.
+  const stored = await settings.read();
+  const backgroundColor = surfaceColorFor(stored.theme);
+  mainWindow = createMainWindow(target, backgroundColor);
+  installApplicationMenu();
 
   // macOS convention: reopen the window when the dock icon is clicked.
   app.on("activate", () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
-      mainWindow = createMainWindow(target);
+      mainWindow = createMainWindow(target, backgroundColor);
     }
   });
 });

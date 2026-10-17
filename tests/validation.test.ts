@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { IpcValidationError, validatePingPayload } from "../src/main/validation";
+import {
+  IpcValidationError,
+  validatePingPayload,
+  validateSettingsUpdatePayload,
+} from "../src/main/validation";
 
 const CHANNEL = "astra:app:ping";
+const SETTINGS_CHANNEL = "astra:settings:update";
 
 describe("validatePingPayload — accepted payloads", () => {
   it("treats an absent payload as an empty request", () => {
@@ -86,5 +91,53 @@ describe("validatePingPayload — error shape", () => {
     // smuggle the sibling fields back to whoever is logging it.
     expect(() => validatePingPayload(CHANNEL, { nonce: 42, token })).toThrow(IpcValidationError);
     expect(() => validatePingPayload(CHANNEL, { nonce: 42, token })).not.toThrow(token);
+  });
+});
+
+describe("validateSettingsUpdatePayload", () => {
+  it("returns only the fields the patch actually carried", () => {
+    expect(validateSettingsUpdatePayload(SETTINGS_CHANNEL, { patch: { theme: "light" } })).toEqual({
+      theme: "light",
+    });
+    expect(
+      validateSettingsUpdatePayload(SETTINGS_CHANNEL, { patch: { fontSize: 16, telemetry: true } }),
+    ).toEqual({ fontSize: 16, telemetry: true });
+  });
+
+  it("accepts an empty patch as a no-op", () => {
+    expect(validateSettingsUpdatePayload(SETTINGS_CHANNEL, { patch: {} })).toEqual({});
+  });
+
+  it("rejects a missing or non-object patch", () => {
+    expect(() => validateSettingsUpdatePayload(SETTINGS_CHANNEL, {})).toThrow(/missing "patch"/);
+    expect(() => validateSettingsUpdatePayload(SETTINGS_CHANNEL, { patch: 5 })).toThrow(
+      IpcValidationError,
+    );
+    expect(() => validateSettingsUpdatePayload(SETTINGS_CHANNEL, { patch: ["theme"] })).toThrow(
+      IpcValidationError,
+    );
+  });
+
+  it("rejects a payload that is not a plain object", () => {
+    expect(() => validateSettingsUpdatePayload(SETTINGS_CHANNEL, null)).toThrow(IpcValidationError);
+    expect(() => validateSettingsUpdatePayload(SETTINGS_CHANNEL, "patch")).toThrow(IpcValidationError);
+  });
+
+  it("rejects an unknown key rather than dropping it", () => {
+    expect(() => validateSettingsUpdatePayload(SETTINGS_CHANNEL, { patch: { theme: "dark", evil: 1 } })).toThrow(
+      /unknown setting "evil"/,
+    );
+  });
+
+  it("rejects an out-of-range or wrong-typed value", () => {
+    expect(() => validateSettingsUpdatePayload(SETTINGS_CHANNEL, { patch: { fontSize: 999 } })).toThrow(
+      /invalid value for "fontSize"/,
+    );
+    expect(() => validateSettingsUpdatePayload(SETTINGS_CHANNEL, { patch: { theme: "sepia" } })).toThrow(
+      IpcValidationError,
+    );
+    expect(() => validateSettingsUpdatePayload(SETTINGS_CHANNEL, { patch: { telemetry: "on" } })).toThrow(
+      IpcValidationError,
+    );
   });
 });

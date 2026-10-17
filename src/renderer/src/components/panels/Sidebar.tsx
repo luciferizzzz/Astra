@@ -1,28 +1,40 @@
 import { useState } from "react";
+import { AUTOSAVE_OFF } from "../../../../shared/settings";
+import { useAppStore } from "@/store/app-store";
 
 /**
  * The left panel: project navigation.
  *
  * The tabs are the five things the design language reserves the left rail for
- * (see the vault note "Design & UX"). Only the tab switching is live; each pane
- * is an empty state that names what will fill it, so the shell never implies
- * data it does not have.
+ * (see the vault note "Design & UX"). Only the tab switching and the Settings
+ * summary are live; the other panes are empty states that name what will fill
+ * them, so the shell never implies data it does not have.
+ *
+ * Settings is a summary, not the editor: the real surface is a dialog that the
+ * menu, the toolbar and the shortcut all open. Repeating the form here would
+ * give the app two settings UIs to keep in step.
  */
 
 const SECTIONS = ["Files", "Components", "Design", "Assets", "Settings"] as const;
 
 type Section = (typeof SECTIONS)[number];
 
-const EMPTY_STATE: Record<Section, string> = {
+const EMPTY_STATE: Record<Exclude<Section, "Settings">, string> = {
   Files: "Open a project folder to see its files here.",
   Components: "Saved components will be listed here.",
   Design: "Design tokens — colours, type, spacing — will live here.",
   Assets: "Images and fonts from the project will appear here.",
-  Settings: "Project and app settings will appear here.",
 };
+
+function describeAutosave(intervalMs: number): string {
+  if (intervalMs === AUTOSAVE_OFF) return "Off";
+  return `${intervalMs / 1000}s after the last change`;
+}
 
 export default function Sidebar() {
   const [active, setActive] = useState<Section>("Files");
+  const settings = useAppStore((state) => state.settings);
+  const openSettings = useAppStore((state) => state.openSettings);
 
   return (
     <aside
@@ -41,8 +53,8 @@ export default function Sidebar() {
               onClick={() => setActive(section)}
               className={`rounded px-2 py-1 text-xs transition-colors ${
                 selected
-                  ? "bg-surface-2 text-neutral-100"
-                  : "text-neutral-500 hover:bg-surface-2 hover:text-neutral-300"
+                  ? "bg-surface-2 text-fg"
+                  : "text-fg-subtle hover:bg-surface-2 hover:text-fg-muted"
               }`}
             >
               {section}
@@ -52,7 +64,33 @@ export default function Sidebar() {
       </nav>
 
       <div role="tabpanel" className="min-h-0 flex-1 overflow-auto p-3">
-        <p className="text-xs leading-relaxed text-neutral-600">{EMPTY_STATE[active]}</p>
+        {active === "Settings" ? (
+          <div className="flex flex-col gap-3">
+            <dl className="flex flex-col gap-2 text-xs">
+              <div className="flex items-baseline justify-between gap-2">
+                <dt className="text-fg-faint">Theme</dt>
+                <dd className="text-fg-muted">{settings.theme}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-2">
+                <dt className="text-fg-faint">Font size</dt>
+                <dd className="text-fg-muted">{settings.fontSize}px</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-2">
+                <dt className="text-fg-faint">Autosave</dt>
+                <dd className="text-right text-fg-muted">{describeAutosave(settings.autosaveIntervalMs)}</dd>
+              </div>
+            </dl>
+            <button
+              type="button"
+              onClick={openSettings}
+              className="rounded border border-border-subtle px-2 py-1 text-xs text-fg-muted hover:bg-surface-2"
+            >
+              Open settings
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs leading-relaxed text-fg-faint">{EMPTY_STATE[active]}</p>
+        )}
       </div>
     </aside>
   );

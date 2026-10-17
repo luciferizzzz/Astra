@@ -11,6 +11,7 @@
  */
 
 import type { PingRequest } from "../shared/ipc";
+import { coerceSettingValue, SETTINGS_KEYS, type AstraSettings } from "../shared/settings";
 
 /** Raised when a payload does not satisfy the contract. Carries no stack to the renderer beyond the message. */
 export class IpcValidationError extends Error {
@@ -54,4 +55,51 @@ function describe(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "an array";
   return typeof value;
+}
+
+/**
+ * Validates the payload of `astra:settings:update`.
+ *
+ * Stricter than the read path on purpose. Reading a settings file is forgiving
+ * because the file is not an attack surface; this payload *is* one, so an
+ * unknown key or an out-of-range value is rejected rather than dropped. The
+ * accepted result is a patch carrying only fields the store knows, each already
+ * narrowed to its legal type and range.
+ *
+ * See PRD §14.4 (SEC-019).
+ */
+export function validateSettingsUpdatePayload(
+  channel: string,
+  payload: unknown,
+): Partial<AstraSettings> {
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    throw new IpcValidationError(channel, `expected a plain object, received ${describe(payload)}`);
+  }
+
+  const { patch } = payload as { readonly patch?: unknown };
+  if (patch === undefined) {
+    throw new IpcValidationError(channel, 'missing "patch"');
+  }
+  if (typeof patch !== "object" || patch === null || Array.isArray(patch)) {
+    throw new IpcValidationError(channel, `"patch" must be a plain object, received ${describe(patch)}`);
+  }
+
+  const record = patch as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!(SETTINGS_KEYS as readonly string[]).includes(key)) {
+      throw new IpcValidationError(channel, `unknown setting "${key}"`);
+    }
+  }
+
+  const result: { -readonly [K in keyof AstraSettings]?: AstraSettings[K] } = {};
+  for (const key of SETTINGS_KEYS) {
+    if (!(key in record)) continue;
+    const coerced = coerceSettingValue(key, record[key]);
+    if (coerced === undefined) {
+      throw new IpcValidationError(channel, `invalid value for "${key}" (${describe(record[key])})`);
+    }
+    (result[key] as AstraSettings[typeof key]) = coerced as AstraSettings[typeof key];
+  }
+
+  return result;
 }

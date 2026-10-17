@@ -1,32 +1,37 @@
 import logo from "@/assets/Astra-logo.svg";
+import { useAppStore, type ViewportPreset } from "@/store/app-store";
 
 /**
  * The application toolbar.
  *
- * A wireframe, not a working toolbar: every control is present and labelled so
- * the layout, focus order and affordances are real, but each is disabled until
- * the feature behind it exists. Keeping them visible — and inert — is the
- * honest version of "not built yet"; a toolbar that silently drops buttons
- * reads as finished when it is not.
+ * The regions of the toolbar are still mostly a wireframe: undo/redo wait for
+ * the history engine, and "Open Project" waits for the project manager, so those
+ * stay disabled. The controls whose behaviour exists today — the viewport
+ * presets, the preview toggle and Settings — are live. Keeping the rest visible
+ * but inert is the honest version of "not built yet"; a toolbar that silently
+ * drops buttons reads as finished when it is not.
+ *
+ * Every control here dispatches through the same store the application menu
+ * drives, so the toolbar and the menu cannot disagree about what "preview" means.
  */
 
-const TOOL_GROUPS: ReadonlyArray<ReadonlyArray<{ label: string; hint: string }>> = [
-  [
-    { label: "Undo", hint: "Undo the last change" },
-    { label: "Redo", hint: "Redo the last undone change" },
-  ],
-  [
-    { label: "Desktop", hint: "Preview at desktop width" },
-    { label: "Tablet", hint: "Preview at tablet width" },
-    { label: "Mobile", hint: "Preview at mobile width" },
-  ],
-  [
-    { label: "Preview", hint: "Open the sandboxed preview" },
-    { label: "Settings", hint: "Project settings" },
-  ],
+const VIEWPORTS: ReadonlyArray<{ id: ViewportPreset; label: string; hint: string }> = [
+  { id: "desktop", label: "Desktop", hint: "Preview at desktop width" },
+  { id: "tablet", label: "Tablet", hint: "Preview at tablet width" },
+  { id: "mobile", label: "Mobile", hint: "Preview at mobile width" },
 ];
 
+const INERT_BUTTON = "cursor-not-allowed rounded px-2 py-1 text-xs text-fg-muted opacity-70";
+const LIVE_BUTTON = "rounded px-2 py-1 text-xs text-fg-muted hover:bg-surface-2";
+const ACTIVE_BUTTON = "rounded bg-surface-2 px-2 py-1 text-xs text-fg";
+
 export default function Header() {
+  const viewport = useAppStore((state) => state.viewport);
+  const setViewport = useAppStore((state) => state.setViewport);
+  const mode = useAppStore((state) => state.mode);
+  const togglePreview = useAppStore((state) => state.togglePreview);
+  const openSettings = useAppStore((state) => state.openSettings);
+
   return (
     <header
       aria-label="Toolbar"
@@ -35,42 +40,70 @@ export default function Header() {
       <div className="flex items-center gap-2">
         <img src={logo} alt="" aria-hidden="true" className="h-6 w-6 rounded" />
         <div className="leading-tight">
-          <h1 className="text-sm font-semibold tracking-tight text-neutral-100">Astra</h1>
-          <p className="text-[10px] text-neutral-500">Design visually. Own your code.</p>
+          <h1 className="text-sm font-semibold tracking-tight text-fg">Astra</h1>
+          <p className="text-[10px] text-fg-subtle">Design visually. Own your code.</p>
         </div>
       </div>
 
       <div className="mx-1 h-6 w-px bg-border-subtle" aria-hidden="true" />
 
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          disabled
-          title="Open a project folder"
-          className="cursor-not-allowed rounded border border-border-subtle px-2 py-1 text-xs text-neutral-400 opacity-70"
-        >
+        <button type="button" disabled title="Open a project folder" className={INERT_BUTTON}>
           Open Project
         </button>
-        <span className="text-xs text-neutral-600">No project open</span>
+        <span className="text-xs text-fg-faint">No project open</span>
       </div>
 
       <div className="ml-auto flex items-center gap-3">
-        {TOOL_GROUPS.map((group, index) => (
-          <div key={index} className="flex items-center gap-1" role="group">
-            {group.map((item) => (
+        <div className="flex items-center gap-1" role="group" aria-label="History">
+          <button type="button" disabled title="Undo the last change" aria-label="Undo the last change" className={INERT_BUTTON}>
+            Undo
+          </button>
+          <button type="button" disabled title="Redo the last undone change" aria-label="Redo the last undone change" className={INERT_BUTTON}>
+            Redo
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1" role="group" aria-label="Viewport">
+          {VIEWPORTS.map((preset) => {
+            const selected = preset.id === viewport;
+            return (
               <button
-                key={item.label}
+                key={preset.id}
                 type="button"
-                disabled
-                title={item.hint}
-                aria-label={item.hint}
-                className="cursor-not-allowed rounded px-2 py-1 text-xs text-neutral-400 opacity-70 hover:bg-surface-2"
+                title={preset.hint}
+                aria-label={preset.hint}
+                aria-pressed={selected}
+                onClick={() => setViewport(preset.id)}
+                className={selected ? ACTIVE_BUTTON : LIVE_BUTTON}
               >
-                {item.label}
+                {preset.label}
               </button>
-            ))}
-          </div>
-        ))}
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-1" role="group" aria-label="Workspace">
+          <button
+            type="button"
+            title="Toggle the preview"
+            aria-label="Toggle the preview"
+            aria-pressed={mode === "preview"}
+            onClick={togglePreview}
+            className={mode === "preview" ? ACTIVE_BUTTON : LIVE_BUTTON}
+          >
+            Preview
+          </button>
+          <button
+            type="button"
+            title="Open application settings"
+            aria-label="Open application settings"
+            onClick={openSettings}
+            className={LIVE_BUTTON}
+          >
+            Settings
+          </button>
+        </div>
       </div>
     </header>
   );

@@ -4,6 +4,12 @@
  * Astra design tokens (foundation).
  * Base surface is dark charcoal; interaction accent is restrained indigo.
  * See vault note "Design & UX" for the full design language.
+ *
+ * Text is expressed as semantic tokens ("fg", "fg-muted", …) rather than fixed
+ * greys, so the Theme setting can restyle the whole interface by redefining the
+ * variables instead of every component. The dark values below are the product's
+ * default appearance; light ones follow under `[data-theme="light"]`, and a
+ * `system` value lets the operating system decide.
  */
 @theme {
   --color-surface-0: #0a0a0b;
@@ -12,6 +18,49 @@
   --color-border-subtle: #26262c;
   --color-accent: #6366f1;
   --color-accent-hover: #818cf8;
+
+  --color-fg: #f4f4f5;
+  --color-fg-muted: #a1a1aa;
+  --color-fg-subtle: #71717a;
+  --color-fg-faint: #52525b;
+}
+
+:root {
+  /* Overridden at runtime from the stored setting; the fallback keeps the
+     editor legible before the main process answers. */
+  --astra-font-mono-size: 13px;
+}
+
+/* Explicit light theme. */
+:root[data-theme="light"] {
+  --color-surface-0: #f4f4f5;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #ebebef;
+  --color-border-subtle: #d4d4d8;
+  --color-accent: #4f46e5;
+  --color-accent-hover: #4338ca;
+
+  --color-fg: #18181b;
+  --color-fg-muted: #3f3f46;
+  --color-fg-subtle: #71717a;
+  --color-fg-faint: #a1a1aa;
+}
+
+/* The default theme: follow the operating system, unless the user chose one. */
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+    --color-surface-0: #f4f4f5;
+    --color-surface-1: #ffffff;
+    --color-surface-2: #ebebef;
+    --color-border-subtle: #d4d4d8;
+    --color-accent: #4f46e5;
+    --color-accent-hover: #4338ca;
+
+    --color-fg: #18181b;
+    --color-fg-muted: #3f3f46;
+    --color-fg-subtle: #71717a;
+    --color-fg-faint: #a1a1aa;
+  }
 }
 
 html,
