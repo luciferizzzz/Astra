@@ -1,10 +1,15 @@
 import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS } from "../shared/ipc";
+import type { ProjectSession } from "./project-session";
 import type { SettingsStore } from "./settings-store";
 import { isTrustedRendererUrl, type TrustedRendererTarget } from "./trusted-url";
 import {
   IpcValidationError,
   validatePingPayload,
+  validateProjectListPayload,
+  validateProjectOpenPayload,
+  validateProjectRelativePathPayload,
+  validateProjectWritePayload,
   validateSettingsUpdatePayload,
 } from "./validation";
 
@@ -12,13 +17,19 @@ import {
  * The complete set of privileged operations the renderer may request.
  *
  * Every handler verifies its sender before looking at the payload. The settings
- * handlers are the first that *write*, so they are also the first that go
- * through the strict payload validator and the atomic store — the renderer can
- * ask for a preference, but it cannot name a file or a path.
+ * and project handlers are the first that touch *user data*, so they are also
+ * the first that go through a strict payload validator: the renderer can ask
+ * for a preference or a file *inside the open project*, but it cannot name an
+ * arbitrary path — that verdict is reached by the validator and, again, by the
+ * adapter's containment check.
  *
- * See PRD §14.4 (SEC-016, SEC-019) and FR-A05.
+ * See PRD §14.4 (SEC-016, SEC-019), FR-A05 and FR-K01.
  */
-export function registerIpcHandlers(target: TrustedRendererTarget, settings: SettingsStore): void {
+export function registerIpcHandlers(
+  target: TrustedRendererTarget,
+  settings: SettingsStore,
+  project: ProjectSession,
+): void {
   ipcMain.handle(IPC_CHANNELS.appPing, (event, payload) => {
     assertTrustedSender(event, IPC_CHANNELS.appPing, target);
     const request = validatePingPayload(IPC_CHANNELS.appPing, payload);
@@ -39,6 +50,47 @@ export function registerIpcHandlers(target: TrustedRendererTarget, settings: Set
     assertTrustedSender(event, IPC_CHANNELS.settingsUpdate, target);
     const patch = validateSettingsUpdatePayload(IPC_CHANNELS.settingsUpdate, payload);
     return settings.update(patch);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.projectOpen, async (event, payload) => {
+    assertTrustedSender(event, IPC_CHANNELS.projectOpen, target);
+    const { rootPath } = validateProjectOpenPayload(IPC_CHANNELS.projectOpen, payload);
+    return project.open(rootPath);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.projectClose, async (event) => {
+    assertTrustedSender(event, IPC_CHANNELS.projectClose, target);
+    await project.close();
+    return { root: null };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.projectGetState, (event) => {
+    assertTrustedSender(event, IPC_CHANNELS.projectGetState, target);
+    return { root: project.root };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.projectList, async (event, payload) => {
+    assertTrustedSender(event, IPC_CHANNELS.projectList, target);
+    const { relativePath } = validateProjectListPayload(IPC_CHANNELS.projectList, payload);
+    return project.list(relativePath);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.projectReadFile, async (event, payload) => {
+    assertTrustedSender(event, IPC_CHANNELS.projectReadFile, target);
+    const { relativePath } = validateProjectRelativePathPayload(
+      IPC_CHANNELS.projectReadFile,
+      payload,
+    );
+    return project.readTextFile(relativePath);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.projectWriteFile, async (event, payload) => {
+    assertTrustedSender(event, IPC_CHANNELS.projectWriteFile, target);
+    const { relativePath, text, expectedHash } = validateProjectWritePayload(
+      IPC_CHANNELS.projectWriteFile,
+      payload,
+    );
+    return project.writeTextFile(relativePath, text, expectedHash);
   });
 }
 

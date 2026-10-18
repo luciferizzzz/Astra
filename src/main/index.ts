@@ -1,11 +1,12 @@
 import { BrowserWindow, Menu, app, dialog, nativeTheme, session } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { IPC_CHANNELS, MENU_COMMANDS, type MenuCommand } from "../shared/ipc";
+import { IPC_CHANNELS, MENU_COMMANDS, type MenuCommand, type ProjectFsEvent } from "../shared/ipc";
 import type { SettingsTheme } from "../shared/settings";
 import { registerIpcHandlers } from "./ipc";
 import { buildMenuTemplate } from "./menu";
 import { openPreview } from "./preview";
+import { createProjectSession } from "./project-session";
 import { hardenSession, hardenWebContents } from "./security";
 import { createSettingsStore } from "./settings-store";
 import type { TrustedRendererTarget } from "./trusted-url";
@@ -20,6 +21,21 @@ import type { TrustedRendererTarget } from "./trusted-url";
 
 // Electron keeps a window alive only while a JavaScript reference to it exists.
 let mainWindow: BrowserWindow | null = null;
+
+/**
+ * The open project, if any. Created at module scope so the quit path can stop
+ * its watcher even if the window never opened.
+ */
+const project = createProjectSession({
+  // Verified external changes are forwarded to the renderer as data; deciding
+  // what they mean (quiet reload vs. conflict prompt) is the sync layer's job.
+  onChanges: (changes) => {
+    sendToRenderer(IPC_CHANNELS.projectFsEvent, { changes } satisfies ProjectFsEvent);
+  },
+  onWatcherFallback: (reason) => {
+    console.warn(`[astra] filesystem watcher fell back to polling: ${reason}`);
+  },
+});
 
 /**
  * Where the renderer lives.
@@ -88,19 +104,22 @@ function createMainWindow(target: TrustedRendererTarget, backgroundColor: string
 }
 
 /**
- * Forwards a menu command to the renderer.
+ * Forwards a message to the renderer, if it is still there.
  *
- * The menu lives in the main process because that is where Electron menus live,
- * but the actions name renderer state (a panel, a viewport preset, a dialog).
- * Rather than keep a second copy of that state here, the click is forwarded and
- * the renderer decides. Guarded on `isDestroyed` because the menu stays live for
- * a moment after the window is gone.
+ * The menu and the filesystem watcher both live in the main process, but what
+ * they report — a click, a changed file — is renderer business. Guarded on
+ * `isDestroyed` because both can outlive the window for a moment.
  */
-function sendMenuCommand(command: MenuCommand): void {
+function sendToRenderer(channel: string, payload: unknown): void {
   const contents = mainWindow?.webContents;
   if (contents && !contents.isDestroyed()) {
-    contents.send(IPC_CHANNELS.menuCommand, command);
+    contents.send(channel, payload);
   }
+}
+
+/** Forwards a menu command to the renderer. */
+function sendMenuCommand(command: MenuCommand): void {
+  sendToRenderer(IPC_CHANNELS.menuCommand, command);
 }
 
 /** The About dialog — deliberately plain, and always offline. */
@@ -142,7 +161,7 @@ app.whenReady().then(async () => {
   const settings = createSettingsStore(app.getPath("userData"));
 
   hardenSession(session.defaultSession);
-  registerIpcHandlers(target, settings);
+  registerIpcHandlers(target, settings, project);
 
   // Installed before anything is awaited, not after. The menu needs neither the
   // stored settings nor the window — a click resolves `mainWindow` at the moment
@@ -186,6 +205,13 @@ installPreviewTestSeam();
 app.on("window-all-closed", () => {
   mainWindow = null;
   if (process.platform !== "darwin") app.quit();
+});
+
+// Best effort: the process is on its way out, so the watcher's handles would
+// be released by the OS anyway. Closing here keeps a dev relaunch from racing
+// a stale watcher against the same project files.
+app.on("will-quit", () => {
+  void project.close();
 });
 
 // Belt and braces. This fires while `new BrowserWindow()` is still constructing,

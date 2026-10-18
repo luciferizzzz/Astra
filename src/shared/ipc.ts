@@ -22,9 +22,27 @@ export const IPC_CHANNELS = {
   /**
    * Main → renderer. The application menu lives in the main process, but the
    * actions it names are renderer concerns, so a menu click is forwarded here.
-   * This is the only channel the main process pushes on.
+   * The menu is the only *command* channel the main process pushes on.
    */
   menuCommand: "astra:menu:command",
+  /** Open a project folder; answers with its canonical root and root listing. */
+  projectOpen: "astra:project:open",
+  /** Close the open project and stop watching it. */
+  projectClose: "astra:project:close",
+  /** List one directory of the open project. */
+  projectList: "astra:project:list",
+  /** Read a project file as text, with the hash of the bytes on disk. */
+  projectReadFile: "astra:project:read-file",
+  /** Atomically write a project file, refusing to clobber a newer one. */
+  projectWriteFile: "astra:project:write-file",
+  /** Which project is open, if any. */
+  projectGetState: "astra:project:get-state",
+  /**
+   * Main → renderer. Verified external changes to the open project. The
+   * renderer is told *what* changed, never asked to decide anything about it:
+   * conflict policy belongs to the sync layer (FR-G02, FR-G04).
+   */
+  projectFsEvent: "astra:project:fs-event",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -47,6 +65,90 @@ export interface SettingsUpdateRequest {
 
 /** Reply for both settings channels: the complete, normalised settings. */
 export type SettingsResponse = AstraSettings;
+
+/* ------------------------------------------------------------------------- *
+ * Project filesystem contract (Phase 1 — FS adapter + watcher).
+ *
+ * All paths in this contract are forward-slash and relative to the project
+ * root. The renderer never handles an absolute path: it asks by position
+ * inside the project, and the main process owns every resolution.
+ * ------------------------------------------------------------------------- */
+
+/** One entry of a project directory listing. */
+export interface ProjectListEntry {
+  readonly name: string;
+  readonly relativePath: string;
+  readonly kind: "file" | "directory";
+}
+
+/** Payload for `astra:project:open`. */
+export interface ProjectOpenRequest {
+  /** Absolute path of the folder to open, as the operating system knows it. */
+  readonly rootPath: string;
+}
+
+/** Reply for `astra:project:open`: how the root resolved, and what is in it. */
+export interface ProjectOpenResponse {
+  readonly root: string;
+  readonly entries: readonly ProjectListEntry[];
+}
+
+/** Payload for `astra:project:list`. */
+export interface ProjectListRequest {
+  /** Directory to list, relative to the root. Absent means the root itself. */
+  readonly relativePath?: string;
+}
+
+/** Payload for `astra:project:read-file`. */
+export interface ProjectReadFileRequest {
+  readonly relativePath: string;
+}
+
+/** A project file's text plus the hash of the bytes that produced it. */
+export interface ProjectFileContents {
+  readonly relativePath: string;
+  readonly text: string;
+  /**
+   * SHA-256 of the bytes on disk at read time. Pass it back as `expectedHash`
+   * when writing, and a file that changed in between raises a conflict rather
+   * than being overwritten (FR-G08).
+   */
+  readonly hash: string;
+}
+
+/** Payload for `astra:project:write-file`. */
+export interface ProjectWriteFileRequest {
+  readonly relativePath: string;
+  readonly text: string;
+  /** Optional optimistic-concurrency guard; omit to write unconditionally. */
+  readonly expectedHash?: string;
+}
+
+/** Reply for `astra:project:write-file`. */
+export interface ProjectWriteFileResponse {
+  readonly relativePath: string;
+  /** SHA-256 of the bytes now on disk — hand it to the watcher as a self-write. */
+  readonly hash: string;
+  readonly bytes: number;
+}
+
+/** Reply for `astra:project:get-state`. */
+export interface ProjectStateResponse {
+  /** Canonical root of the open project, or `null` when none is open. */
+  readonly root: string | null;
+}
+
+/** One verified external change to the open project. */
+export interface ProjectFsChange {
+  readonly type: "created" | "changed" | "deleted";
+  readonly relativePath: string;
+  readonly kind: "file" | "directory";
+}
+
+/** Push payload for `astra:project:fs-event`: a batch, because bursts coalesce. */
+export interface ProjectFsEvent {
+  readonly changes: readonly ProjectFsChange[];
+}
 
 /**
  * Menu actions the main process forwards to the renderer.

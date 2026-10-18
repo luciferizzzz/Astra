@@ -12,6 +12,7 @@
 
 import type { PingRequest } from "../shared/ipc";
 import { coerceSettingValue, SETTINGS_KEYS, type AstraSettings } from "../shared/settings";
+import { normalizeRelativePath, UnsafePathError } from "./project-paths";
 
 /** Raised when a payload does not satisfy the contract. Carries no stack to the renderer beyond the message. */
 export class IpcValidationError extends Error {
@@ -102,4 +103,115 @@ export function validateSettingsUpdatePayload(
   }
 
   return result;
+}
+
+/** Absolute paths from the renderer stop here: Windows path syntax is the most generous. */
+const MAX_ROOT_PATH_LENGTH = 4096;
+const HASH_PATTERN = /^[0-9a-f]{64}$/;
+
+function requirePlainObject(channel: string, payload: unknown): Record<string, unknown> {
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    throw new IpcValidationError(channel, `expected a plain object, received ${describe(payload)}`);
+  }
+  return payload as Record<string, unknown>;
+}
+
+/**
+ * Validates the payload of `astra:project:open`.
+ *
+ * The root is the one path the renderer may name absolutely — choosing a
+ * folder is the whole point of opening a project. It is checked for shape
+ * only; containment is the adapter's job, and directories that do not exist
+ * are answered by the adapter with a real error rather than rejected twice.
+ */
+export function validateProjectOpenPayload(channel: string, payload: unknown): { rootPath: string } {
+  const record = requirePlainObject(channel, payload);
+  const { rootPath } = record;
+
+  if (typeof rootPath !== "string") {
+    throw new IpcValidationError(channel, `"rootPath" must be a string, received ${describe(rootPath)}`);
+  }
+  if (rootPath.trim() === "") {
+    throw new IpcValidationError(channel, `"rootPath" must not be empty`);
+  }
+  if (rootPath.includes("\0")) {
+    throw new IpcValidationError(channel, `"rootPath" contains a NUL byte`);
+  }
+  if (rootPath.length > MAX_ROOT_PATH_LENGTH) {
+    throw new IpcValidationError(channel, `"rootPath" exceeds ${MAX_ROOT_PATH_LENGTH} characters`);
+  }
+
+  return { rootPath };
+}
+
+/**
+ * Validates a payload carrying one project-relative path (read-file and
+ * write-file). The path goes through the same normaliser the adapter uses, so
+ * a traversal attempt is rejected at the boundary with the same verdict the
+ * filesystem layer would have reached.
+ */
+export function validateProjectRelativePathPayload(
+  channel: string,
+  payload: unknown,
+): { relativePath: string } {
+  const record = requirePlainObject(channel, payload);
+  return { relativePath: safeNormalize(channel, record["relativePath"]) };
+}
+
+/**
+ * Validates the payload of `astra:project:list`. The path is optional — an
+ * absent path means "the project root", which only this channel accepts.
+ */
+export function validateProjectListPayload(
+  channel: string,
+  payload: unknown,
+): { relativePath: string | undefined } {
+  if (payload === undefined || payload === null) return { relativePath: undefined };
+  const record = requirePlainObject(channel, payload);
+  const raw = record["relativePath"];
+  if (raw === undefined || raw === null) return { relativePath: undefined };
+  return { relativePath: safeNormalize(channel, raw) };
+}
+
+/**
+ * Validates the payload of `astra:project:write-file`.
+ *
+ * The text is accepted as-is — it is data, and the atomic writer treats it as
+ * such. The optional `expectedHash` must be a SHA-256 in the exact shape the
+ * hashers produce, because a malformed guard would turn a real conflict into a
+ * false one.
+ */
+export function validateProjectWritePayload(
+  channel: string,
+  payload: unknown,
+): { relativePath: string; text: string; expectedHash: string | undefined } {
+  const record = requirePlainObject(channel, payload);
+  const { relativePath, text, expectedHash } = record;
+
+  if (typeof text !== "string") {
+    throw new IpcValidationError(channel, `"text" must be a string, received ${describe(text)}`);
+  }
+  if (expectedHash !== undefined && expectedHash !== null) {
+    if (typeof expectedHash !== "string" || !HASH_PATTERN.test(expectedHash)) {
+      throw new IpcValidationError(channel, `"expectedHash" must be a 64-character hex SHA-256`);
+    }
+  }
+
+  return {
+    relativePath: safeNormalize(channel, relativePath),
+    text,
+    expectedHash:
+      typeof expectedHash === "string" && HASH_PATTERN.test(expectedHash) ? expectedHash : undefined,
+  };
+}
+
+function safeNormalize(channel: string, value: unknown): string {
+  try {
+    return normalizeRelativePath(value);
+  } catch (error) {
+    if (error instanceof UnsafePathError) {
+      throw new IpcValidationError(channel, error.message);
+    }
+    throw error;
+  }
 }

@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC_CHANNELS, isMenuCommand, type MenuCommand } from "../shared/ipc";
+import {
+  IPC_CHANNELS,
+  isMenuCommand,
+  type MenuCommand,
+  type ProjectFsEvent,
+} from "../shared/ipc";
 import type { AstraSettings } from "../shared/settings";
 import type { AstraApi } from "./api";
 
@@ -14,6 +19,23 @@ import type { AstraApi } from "./api";
  * Runs with `sandbox: true`, so it may import nothing but `electron` and
  * in-repo constants — the bundle has to be self-contained.
  */
+
+/** Shape check for pushed filesystem events: the preload drops anything malformed. */
+function isProjectFsEvent(value: unknown): value is ProjectFsEvent {
+  if (typeof value !== "object" || value === null) return false;
+  const changes = (value as { changes?: unknown }).changes;
+  if (!Array.isArray(changes)) return false;
+  return changes.every((change) => {
+    if (typeof change !== "object" || change === null) return false;
+    const { type, relativePath, kind } = change as Record<string, unknown>;
+    return (
+      (type === "created" || type === "changed" || type === "deleted") &&
+      typeof relativePath === "string" &&
+      (kind === "file" || kind === "directory")
+    );
+  });
+}
+
 const api: AstraApi = {
   ping: (nonce?: string) => ipcRenderer.invoke(IPC_CHANNELS.appPing, { nonce }),
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.appGetVersion),
@@ -29,6 +51,32 @@ const api: AstraApi = {
     ipcRenderer.on(IPC_CHANNELS.menuCommand, handler);
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.menuCommand, handler);
+    };
+  },
+
+  projectOpen: (rootPath: string) => ipcRenderer.invoke(IPC_CHANNELS.projectOpen, { rootPath }),
+  projectClose: () => ipcRenderer.invoke(IPC_CHANNELS.projectClose),
+  projectList: (relativePath?: string) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.projectList,
+      relativePath === undefined ? undefined : { relativePath },
+    ),
+  projectReadFile: (relativePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.projectReadFile, { relativePath }),
+  projectWriteFile: (relativePath: string, text: string, expectedHash?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.projectWriteFile, {
+      relativePath,
+      text,
+      ...(expectedHash !== undefined ? { expectedHash } : {}),
+    }),
+  getProjectState: () => ipcRenderer.invoke(IPC_CHANNELS.projectGetState),
+  onProjectFsEvent: (listener) => {
+    const handler = (_event: unknown, payload: unknown): void => {
+      if (isProjectFsEvent(payload)) listener(payload.changes);
+    };
+    ipcRenderer.on(IPC_CHANNELS.projectFsEvent, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.projectFsEvent, handler);
     };
   },
 };

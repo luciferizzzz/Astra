@@ -1,5 +1,13 @@
 import type { AstraSettings } from "../shared/settings";
-import type { MenuCommand, PingResponse } from "../shared/ipc";
+import type {
+  MenuCommand,
+  PingResponse,
+  ProjectFileContents,
+  ProjectFsChange,
+  ProjectListEntry,
+  ProjectOpenResponse,
+  ProjectWriteFileResponse,
+} from "../shared/ipc";
 
 /**
  * The exact surface `window.astra` publishes to the renderer.
@@ -25,4 +33,31 @@ export interface AstraApi {
    * still refuses to forward anything else.
    */
   onMenuCommand(listener: (command: MenuCommand) => void): () => void;
+
+  /** Opens a project folder, replacing any project already open. */
+  projectOpen(rootPath: string): Promise<ProjectOpenResponse>;
+  /** Closes the open project and stops watching it. */
+  projectClose(): Promise<{ root: null }>;
+  /** Lists one project directory (absent path = the project root). */
+  projectList(relativePath?: string): Promise<ProjectListEntry[]>;
+  /** Reads a project file as text, with the hash of the bytes on disk. */
+  projectReadFile(relativePath: string): Promise<ProjectFileContents>;
+  /**
+   * Writes a project file atomically. With `expectedHash`, a file that changed
+   * on disk since it was read is reported as a conflict, not overwritten.
+   */
+  projectWriteFile(
+    relativePath: string,
+    text: string,
+    expectedHash?: string,
+  ): Promise<ProjectWriteFileResponse>;
+  /** Canonical root of the open project, or `null`. */
+  getProjectState(): Promise<{ root: string | null }>;
+  /**
+   * Subscribes to verified external changes to the open project.
+   *
+   * Returns an unsubscribe function. Batches, because a single save elsewhere
+   * arrives from the OS as a burst of events.
+   */
+  onProjectFsEvent(listener: (changes: readonly ProjectFsChange[]) => void): () => void;
 }
