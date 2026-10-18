@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import App from "@/App";
 import { useAppStore } from "@/store/app-store";
+import { useProjectStore } from "@/store/project-store";
 import { DEFAULT_SETTINGS } from "../src/shared/settings";
 
 /**
@@ -22,6 +23,18 @@ beforeEach(() => {
     viewport: "desktop",
     mode: "edit",
   });
+  useProjectStore.setState({
+    root: null,
+    name: null,
+    entriesByDirectory: {},
+    expanded: {},
+    selectedPath: null,
+    openFile: null,
+    fileIssue: null,
+    notice: null,
+    opening: false,
+    error: null,
+  } as any);
 });
 
 describe("App shell", () => {
@@ -46,7 +59,7 @@ describe("App shell", () => {
   it("keeps the controls whose features do not exist yet inert", () => {
     render(<App />);
 
-    expect(screen.getByRole("button", { name: /open project/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /open a project folder/i })).toBeEnabled();
     expect(screen.getByRole("button", { name: /undo the last change/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /redo the last undone change/i })).toBeDisabled();
   });

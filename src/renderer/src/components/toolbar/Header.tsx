@@ -1,18 +1,13 @@
 import logo from "@/assets/Astra-logo.svg";
 import { useAppStore, type ViewportPreset } from "@/store/app-store";
+import { useProjectStore } from "@/store/project-store";
 
 /**
  * The application toolbar.
  *
  * The regions of the toolbar are still mostly a wireframe: undo/redo wait for
- * the history engine, and "Open Project" waits for the project manager, so those
- * stay disabled. The controls whose behaviour exists today — the viewport
- * presets, the preview toggle and Settings — are live. Keeping the rest visible
- * but inert is the honest version of "not built yet"; a toolbar that silently
- * drops buttons reads as finished when it is not.
- *
- * Every control here dispatches through the same store the application menu
- * drives, so the toolbar and the menu cannot disagree about what "preview" means.
+ * the history engine. The controls whose behaviour exists today — the viewport
+ * presets, the preview toggle, Settings and "Open/Close Project" — are live.
  */
 
 const VIEWPORTS: ReadonlyArray<{ id: ViewportPreset; label: string; hint: string }> = [
@@ -31,6 +26,9 @@ export default function Header() {
   const mode = useAppStore((state) => state.mode);
   const togglePreview = useAppStore((state) => state.togglePreview);
   const openSettings = useAppStore((state) => state.openSettings);
+  const projectName = useProjectStore((state) => state.name);
+  const openProject = useProjectStore((state) => state.openProject);
+  const closeProject = useProjectStore((state) => state.closeProject);
 
   return (
     <header
@@ -48,10 +46,31 @@ export default function Header() {
       <div className="mx-1 h-6 w-px bg-border-subtle" aria-hidden="true" />
 
       <div className="flex items-center gap-2">
-        <button type="button" disabled title="Open a project folder" className={INERT_BUTTON}>
+        <button
+          type="button"
+          onClick={() => void openProject()}
+          className={LIVE_BUTTON}
+          aria-label="Open a project folder"
+        >
           Open Project
         </button>
-        <span className="text-xs text-fg-faint">No project open</span>
+        {projectName ? (
+          <>
+            <span className="text-xs text-fg-muted" data-testid="project-name">
+              {projectName}
+            </span>
+            <button
+              type="button"
+              onClick={() => void closeProject()}
+              className={LIVE_BUTTON}
+              aria-label="Close the open project"
+            >
+              Close Project
+            </button>
+          </>
+        ) : (
+          <span className="text-xs text-fg-faint">No project open</span>
+        )}
       </div>
 
       <div className="ml-auto flex items-center gap-3">

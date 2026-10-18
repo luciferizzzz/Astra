@@ -40,7 +40,7 @@ test("disables what is not built and leaves Settings live", async () => {
   });
 
   const byLabel = new Map(fileMenu.map((item) => [item.label, item.enabled]));
-  expect(byLabel.get("Open Project…")).toBe(false);
+  expect(byLabel.get("Open Project…")).toBe(true);
   expect(byLabel.get("Save")).toBe(false);
   expect(byLabel.get("Settings…")).toBe(true);
 });

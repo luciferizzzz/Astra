@@ -10,8 +10,8 @@
  * does not exist yet is rendered **disabled**, not hidden. A menu that silently
  * omits "Open Project" reads as a build that cannot open projects; a greyed-out
  * item reads as a build that will. Only the items that genuinely work today are
- * enabled — Settings, Exit, About, the viewport presets, the panel toggles and
- * the preview toggle. See PRD §9.3 and FR-A02.
+ * enabled — Open/Close Project, Settings, Exit, About, the viewport presets, the
+ * panel toggles and the preview toggle. See PRD §9.3 and FR-A02.
  */
 
 import type { MenuItemConstructorOptions } from "electron";
@@ -22,7 +22,7 @@ export interface MenuHandlers {
   onOpenSettings: () => void;
   /** Show the About dialog. */
   onAbout: () => void;
-  /** Forward a renderer-owned command (panels, viewport, preview). */
+  /** Forward a renderer-owned command (projects, panels, viewport, preview). */
   onCommand: (command: MenuCommand) => void;
 }
 
@@ -30,6 +30,15 @@ export interface MenuBuildOptions {
   readonly handlers: MenuHandlers;
   /** Adds Reload and Developer Tools. Never true in a packaged build. */
   readonly isDevelopment: boolean;
+  /**
+   * Whether a project is currently open.
+   *
+   * "Close Project" is meaningless without one and is greyed out until there is.
+   * "Open Project…" stays live either way: opening a second folder is how a user
+   * switches projects, and the session replaces the first. Defaults to `false`
+   * so a caller that does not track projects gets the conservative menu.
+   */
+  readonly hasProject?: boolean;
   /** Defaults to the running platform; overridable so tests can pin it. */
   readonly platform?: NodeJS.Platform;
 }
@@ -48,13 +57,23 @@ function comingSoon(label: string, accelerator?: string): MenuItemConstructorOpt
 export function buildMenuTemplate(options: MenuBuildOptions): MenuItemConstructorOptions[] {
   const { handlers, isDevelopment } = options;
   const platform = options.platform ?? process.platform;
+  const hasProject = options.hasProject ?? false;
 
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
       comingSoon("New File"),
-      comingSoon("Open Project…", "CmdOrCtrl+O"),
-      comingSoon("Close Project"),
+      {
+        label: "Open Project…",
+        accelerator: "CmdOrCtrl+O",
+        enabled: true,
+        click: () => handlers.onCommand(MENU_COMMANDS.openProject),
+      },
+      {
+        label: "Close Project",
+        enabled: hasProject,
+        click: () => handlers.onCommand(MENU_COMMANDS.closeProject),
+      },
       { type: "separator" },
       comingSoon("Save", "CmdOrCtrl+S"),
       comingSoon("Save All", "CmdOrCtrl+Shift+S"),

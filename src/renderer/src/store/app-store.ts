@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { bridge } from "./bridge";
 import { MENU_COMMANDS, type MenuCommand } from "../../../shared/ipc";
 import { DEFAULT_SETTINGS, type AstraSettings } from "../../../shared/settings";
 
@@ -63,10 +64,6 @@ export function applySettingsToDom(settings: AstraSettings): void {
   const root = document.documentElement;
   root.dataset["theme"] = settings.theme;
   root.style.setProperty("--astra-font-mono-size", `${settings.fontSize}px`);
-}
-
-function bridge(): typeof window.astra | undefined {
-  return typeof window === "undefined" ? undefined : window.astra;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -148,6 +145,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         return;
       case MENU_COMMANDS.viewportMobile:
         get().setViewport("mobile");
+        return;
+      default:
         return;
     }
   },

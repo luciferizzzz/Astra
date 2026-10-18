@@ -1,4 +1,12 @@
-import { BrowserWindow, Menu, app, dialog, nativeTheme, session } from "electron";
+import {
+  BrowserWindow,
+  Menu,
+  app,
+  dialog,
+  nativeTheme,
+  session,
+  type OpenDialogOptions,
+} from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { IPC_CHANNELS, MENU_COMMANDS, type MenuCommand, type ProjectFsEvent } from "../shared/ipc";
@@ -122,6 +130,32 @@ function sendMenuCommand(command: MenuCommand): void {
   sendToRenderer(IPC_CHANNELS.menuCommand, command);
 }
 
+/**
+ * Shows the operating system's folder picker.
+ *
+ * The renderer cannot open a native dialog, and it must never invent an absolute
+ * path, so "Open Project" is answered here: this is the only place an absolute
+ * path is produced. What the user picks is still only a *candidate* — the open
+ * handler validates its shape and the adapter resolves and contains it before a
+ * byte is read.
+ */
+async function pickProjectFolder(): Promise<string | null> {
+  const options: OpenDialogOptions = {
+    title: "Open Project",
+    buttonLabel: "Open Project",
+    properties: ["openDirectory"],
+  };
+
+  // Parented to the window when there is one, so the dialog is modal to it.
+  const result =
+    mainWindow && !mainWindow.isDestroyed()
+      ? await dialog.showOpenDialog(mainWindow, options)
+      : await dialog.showOpenDialog(options);
+
+  if (result.canceled) return null;
+  return result.filePaths[0] ?? null;
+}
+
 /** The About dialog — deliberately plain, and always offline. */
 async function showAboutDialog(): Promise<void> {
   const options = {
@@ -142,11 +176,18 @@ async function showAboutDialog(): Promise<void> {
   }
 }
 
-/** Installs the native application menu (FR-A02). */
+/**
+ * Installs the native application menu (FR-A02).
+ *
+ * Re-run whenever a project opens or closes: the menu is the main process's own
+ * view of its own session, so "Close Project" is greyed out exactly when there is
+ * nothing to close. That is main-process state, not a mirror of the renderer's.
+ */
 function installApplicationMenu(): void {
   const template = buildMenuTemplate({
     // Reload and DevTools only make sense against the dev server.
     isDevelopment: !app.isPackaged,
+    hasProject: project.root !== null,
     handlers: {
       onOpenSettings: () => sendMenuCommand(MENU_COMMANDS.openSettings),
       onAbout: () => void showAboutDialog(),
@@ -161,7 +202,13 @@ app.whenReady().then(async () => {
   const settings = createSettingsStore(app.getPath("userData"));
 
   hardenSession(session.defaultSession);
-  registerIpcHandlers(target, settings, project);
+  registerIpcHandlers(target, settings, project, {
+    pickProjectFolder,
+    // The menu's enabled state follows the session, so it is re-installed
+    // whenever that session changes — including after a *failed* open, which
+    // still leaves the previous project closed.
+    refreshMenu: installApplicationMenu,
+  });
 
   // Installed before anything is awaited, not after. The menu needs neither the
   // stored settings nor the window — a click resolves `mainWindow` at the moment

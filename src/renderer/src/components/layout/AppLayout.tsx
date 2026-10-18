@@ -7,6 +7,7 @@ import Header from "../toolbar/Header";
 import SettingsDialog from "../ui/SettingsDialog";
 import StatusBar from "../ui/StatusBar";
 import { useAppStore } from "@/store/app-store";
+import { bindProjectCommands, useProjectStore } from "@/store/project-store";
 
 /**
  * The application shell.
@@ -17,22 +18,35 @@ import { useAppStore } from "@/store/app-store";
  * component, so a later phase can make one of them real without touching the
  * others.
  *
- * This is also where the shell meets the main process: settings are loaded once
- * on mount and the menu-command subscription lives for as long as the layout
- * does. Both are renderer concerns, which is why they are wired here rather than
- * in `main.tsx` — a test that renders `<App />` gets the same behaviour a real
- * window does.
+ * This is also where the shell meets the main process: settings and project state
+ * are loaded once on mount, the menu-command subscription lives for as long as the
+ * layout does, and menu commands are routed to the store that owns them.
  */
 export default function AppLayout() {
   const panels = useAppStore((state) => state.panels);
   const settingsOpen = useAppStore((state) => state.settingsOpen);
-  const hydrate = useAppStore((state) => state.hydrate);
+  const hydrateApp = useAppStore((state) => state.hydrate);
   const subscribeToMenu = useAppStore((state) => state.subscribeToMenu);
+  const appState = useAppStore((state) => state);
+  const projectState = useProjectStore((state) => state);
+  const hydrateProject = useProjectStore((state) => state.hydrate);
+  const subscribeToFs = useProjectStore((state) => state.subscribeToFs);
 
   useEffect(() => {
-    void hydrate();
-    return subscribeToMenu();
-  }, [hydrate, subscribeToMenu]);
+    bindProjectCommands(appState, projectState);
+    // bind once per mount; stores are module singletons
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    void hydrateApp();
+    void hydrateProject();
+    const unsubscribeMenu = subscribeToMenu();
+    const unsubscribeFs = subscribeToFs();
+    return () => {
+      unsubscribeMenu();
+      unsubscribeFs();
+    };
+  }, [hydrateApp, hydrateProject, subscribeToMenu, subscribeToFs]);
 
   return (
     <div className="flex h-full w-full flex-col bg-surface-0 text-fg">

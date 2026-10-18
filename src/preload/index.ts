@@ -55,6 +55,7 @@ const api: AstraApi = {
   },
 
   projectOpen: (rootPath: string) => ipcRenderer.invoke(IPC_CHANNELS.projectOpen, { rootPath }),
+  pickProjectFolder: () => ipcRenderer.invoke(IPC_CHANNELS.projectPickFolder),
   projectClose: () => ipcRenderer.invoke(IPC_CHANNELS.projectClose),
   projectList: (relativePath?: string) =>
     ipcRenderer.invoke(

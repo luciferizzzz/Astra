@@ -83,9 +83,16 @@ describe("buildMenuTemplate — File", () => {
   });
 
   it("disables the project and save actions until those features exist", () => {
-    expect(itemNamed(file(), "Open Project…").enabled).toBe(false);
+    expect(itemNamed(file(), "Open Project…").enabled).toBe(true);
+    expect(itemNamed(file(), "Close Project").enabled).toBe(false);
     expect(itemNamed(file(), "Save").enabled).toBe(false);
     expect(itemNamed(file(), "Save All").enabled).toBe(false);
+  });
+
+  it("enables Close Project when a project is open", () => {
+    const fileOpen = submenuOf(menu({ handlers: handlers(), isDevelopment: false, hasProject: true }), "File");
+    expect(itemNamed(fileOpen, "Open Project…").enabled).toBe(true);
+    expect(itemNamed(fileOpen, "Close Project").enabled).toBe(true);
   });
 
   it("leaves Settings enabled and wires it to the handler", () => {

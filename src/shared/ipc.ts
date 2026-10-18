@@ -43,6 +43,16 @@ export const IPC_CHANNELS = {
    * conflict policy belongs to the sync layer (FR-G02, FR-G04).
    */
   projectFsEvent: "astra:project:fs-event",
+  /**
+   * Show the operating system's folder picker so the user can name a folder.
+   *
+   * This is the only way an absolute path can enter the renderer. The renderer
+   * never types one and never invents one: it asks for the native dialog, and
+   * whatever comes back is still put through the `projectOpen` validator and the
+   * adapter's containment check before a single byte is read. Answers with the
+   * chosen path, or `null` when the dialog was dismissed.
+   */
+  projectPickFolder: "astra:project:pick-folder",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -138,6 +148,17 @@ export interface ProjectStateResponse {
   readonly root: string | null;
 }
 
+/**
+ * Reply for `astra:project:pick-folder`: the folder the user chose, or `null`
+ * when the dialog was dismissed.
+ *
+ * The value is the operating system's own path, and the native dialog is the
+ * only producer of it — the renderer can ask for the dialog but never supply the
+ * answer. Treat it as a request to open, not as a decision: `projectOpen`
+ * validates it and the adapter proves it is a real, contained directory.
+ */
+export type ProjectPickFolderResponse = string | null;
+
 /** One verified external change to the open project. */
 export interface ProjectFsChange {
   readonly type: "created" | "changed" | "deleted";
@@ -161,6 +182,17 @@ export interface ProjectFsEvent {
  */
 export const MENU_COMMANDS = {
   openSettings: "open-settings",
+  /**
+   * Show the folder picker and open the chosen project.
+   *
+   * Forwarded to the renderer rather than run in the main process on purpose:
+   * the renderer owns the view of what is open, and routing the click through
+   * the same store method the toolbar button uses means one code path opens a
+   * project, not two that can drift.
+   */
+  openProject: "open-project",
+  /** Close the open project and return the shell to its welcome state. */
+  closeProject: "close-project",
   toggleSidebar: "toggle-sidebar",
   toggleInspector: "toggle-inspector",
   toggleEditor: "toggle-editor",

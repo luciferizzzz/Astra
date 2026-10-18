@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { AUTOSAVE_OFF } from "../../../../shared/settings";
 import { useAppStore } from "@/store/app-store";
+import { useProjectStore } from "@/store/project-store";
+import FileTree from "./FileTree";
 
 /**
  * The left panel: project navigation.
@@ -35,6 +37,9 @@ export default function Sidebar() {
   const [active, setActive] = useState<Section>("Files");
   const settings = useAppStore((state) => state.settings);
   const openSettings = useAppStore((state) => state.openSettings);
+  const root = useProjectStore((state) => state.root);
+  const openProject = useProjectStore((state) => state.openProject);
+
 
   return (
     <aside
@@ -86,6 +91,21 @@ export default function Sidebar() {
               className="rounded border border-border-subtle px-2 py-1 text-xs text-fg-muted hover:bg-surface-2"
             >
               Open settings
+            </button>
+          </div>
+        ) : active === "Files" && root !== null ? (
+          <div className="flex flex-col gap-2">
+            <FileTree />
+          </div>
+        ) : active === "Files" ? (
+          <div className="flex flex-col gap-2 text-xs">
+            <p className="leading-relaxed text-fg-faint">{EMPTY_STATE[active]}</p>
+            <button
+              type="button"
+              onClick={() => void openProject()}
+              className="self-start rounded border border-border-subtle px-2 py-1 text-xs text-fg-muted hover:bg-surface-2"
+            >
+              Open Project
             </button>
           </div>
         ) : (

@@ -36,6 +36,14 @@ export interface AstraApi {
 
   /** Opens a project folder, replacing any project already open. */
   projectOpen(rootPath: string): Promise<ProjectOpenResponse>;
+  /**
+   * Shows the operating system's folder picker.
+   *
+   * Resolves with the chosen path, or `null` when the dialog was dismissed. This
+   * is the renderer's only source of an absolute path, and the value is still
+   * validated by `projectOpen` before anything is read.
+   */
+  pickProjectFolder(): Promise<string | null>;
   /** Closes the open project and stops watching it. */
   projectClose(): Promise<{ root: null }>;
   /** Lists one project directory (absent path = the project root). */

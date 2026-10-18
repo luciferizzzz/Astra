@@ -14,6 +14,20 @@ import {
 } from "./validation";
 
 /**
+ * The main-process services the project handlers need from the entry point.
+ *
+ * Injected rather than imported so this module stays free of window and dialog
+ * concerns: the entry point owns the window, and a test can register the
+ * handlers and drive them with plain functions.
+ */
+export interface ProjectHost {
+  /** Shows the native folder picker. Resolves to the chosen path, or `null`. */
+  pickProjectFolder: () => Promise<string | null>;
+  /** Re-installs the application menu so its enabled state matches the session. */
+  refreshMenu: () => void;
+}
+
+/**
  * The complete set of privileged operations the renderer may request.
  *
  * Every handler verifies its sender before looking at the payload. The settings
@@ -29,6 +43,7 @@ export function registerIpcHandlers(
   target: TrustedRendererTarget,
   settings: SettingsStore,
   project: ProjectSession,
+  host: ProjectHost,
 ): void {
   ipcMain.handle(IPC_CHANNELS.appPing, (event, payload) => {
     assertTrustedSender(event, IPC_CHANNELS.appPing, target);
@@ -52,16 +67,31 @@ export function registerIpcHandlers(
     return settings.update(patch);
   });
 
+  ipcMain.handle(IPC_CHANNELS.projectPickFolder, async (event) => {
+    assertTrustedSender(event, IPC_CHANNELS.projectPickFolder, target);
+    return host.pickProjectFolder();
+  });
+
   ipcMain.handle(IPC_CHANNELS.projectOpen, async (event, payload) => {
     assertTrustedSender(event, IPC_CHANNELS.projectOpen, target);
     const { rootPath } = validateProjectOpenPayload(IPC_CHANNELS.projectOpen, payload);
-    return project.open(rootPath);
+    try {
+      return await project.open(rootPath);
+    } finally {
+      // A failed open still changed the session: `open` closes the previous
+      // project first, so the menu must not keep offering "Close Project".
+      host.refreshMenu();
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.projectClose, async (event) => {
     assertTrustedSender(event, IPC_CHANNELS.projectClose, target);
-    await project.close();
-    return { root: null };
+    try {
+      await project.close();
+      return { root: null };
+    } finally {
+      host.refreshMenu();
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.projectGetState, (event) => {
