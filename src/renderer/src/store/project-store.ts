@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { detectEntryPoint } from "../../../shared/entry-point";
 import { MENU_COMMANDS } from "../../../shared/ipc";
 import type { ProjectFsChange, ProjectListEntry } from "../../../shared/ipc";
 import { bridge } from "./bridge";
@@ -22,6 +23,14 @@ export interface ProjectStoreState {
   readonly expanded: Readonly<Record<string, boolean>>;
   readonly selectedPath: string | null;
   readonly openFile: OpenProjectFile | null;
+  /**
+   * The project's entry page (`index.html`, else `index.htm`), or `null`.
+   *
+   * Derived from the root listing rather than stored separately, so it cannot
+   * drift: any refresh of the root — open, hydrate, or a watcher event that
+   * created/deleted the entry — recomputes it here.
+   */
+  readonly entryPoint: string | null;
   /** Set when the open file vanished or became unreadable (FR-B06). */
   readonly fileIssue: FileIssue;
   /** A short, non-blocking message about the last external change (FR-B05). */
@@ -34,6 +43,8 @@ export interface ProjectStoreState {
   openProject: () => Promise<void>;
   openProjectAt: (rootPath: string) => Promise<void>;
   closeProject: () => Promise<void>;
+  /** Opens the entry page in the code editor. No-op when there is none. */
+  openEntryPoint: () => Promise<void>;
   toggleDirectory: (relativePath: string) => Promise<void>;
   refreshDirectory: (relativePath: string) => Promise<void>;
   selectFile: (relativePath: string) => Promise<void>;
@@ -64,6 +75,7 @@ function emptyProjectState(): ProjectStoreState {
     expanded: {},
     selectedPath: null,
     openFile: null,
+    entryPoint: null,
     fileIssue: null,
     notice: null,
     opening: false,
@@ -73,6 +85,7 @@ function emptyProjectState(): ProjectStoreState {
     openProject: () => Promise.resolve(),
     openProjectAt: () => Promise.resolve(),
     closeProject: () => Promise.resolve(),
+    openEntryPoint: () => Promise.resolve(),
     toggleDirectory: () => Promise.resolve(),
     refreshDirectory: () => Promise.resolve(),
     selectFile: () => Promise.resolve(),
@@ -104,12 +117,12 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
       const { root } = await api.getProjectState();
       if (root === null) {
         applyProjectTitle(null);
-        set({ root: null, name: null, entriesByDirectory: {}, expanded: {} });
+        set({ root: null, name: null, entriesByDirectory: {}, expanded: {}, entryPoint: null });
         return;
       }
       const name = projectNameFrom(root);
       applyProjectTitle(name);
-      set({ root, name, entriesByDirectory: {}, expanded: {} });
+      set({ root, name, entriesByDirectory: {}, expanded: {}, entryPoint: null });
       await get().refreshDirectory(ROOT_DIRECTORY).catch(() => undefined);
     } catch {
       // Leave the shell closed: the app should still boot.
@@ -152,6 +165,7 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
         expanded: {},
         selectedPath: null,
         openFile: null,
+        entryPoint: detectEntryPoint(opened.entries),
         fileIssue: null,
         notice: null,
         opening: false,
@@ -180,11 +194,18 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
       expanded: {},
       selectedPath: null,
       openFile: null,
+      entryPoint: null,
       fileIssue: null,
       notice: null,
       opening: false,
       error: null,
     });
+  },
+
+  openEntryPoint: async () => {
+    const entry = get().entryPoint;
+    if (entry === null) return;
+    await get().selectFile(entry);
   },
 
   toggleDirectory: async (relativePath) => {
@@ -207,6 +228,10 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
     const entries = await api.projectList(relativePath === ROOT_DIRECTORY ? undefined : relativePath);
     set((state) => ({
       entriesByDirectory: { ...state.entriesByDirectory, [relativePath]: [...entries] },
+      // A root refresh is the one moment the entry page can change under us:
+      // the watcher reported index.html created or deleted, so the verdict is
+      // retaken from the listing the refresh just brought back.
+      ...(relativePath === ROOT_DIRECTORY ? { entryPoint: detectEntryPoint(entries) } : {}),
     }));
   },
 

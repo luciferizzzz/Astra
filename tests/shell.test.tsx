@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "@/App";
 import { useAppStore } from "@/store/app-store";
 import { useProjectStore } from "@/store/project-store";
@@ -30,6 +30,7 @@ beforeEach(() => {
     expanded: {},
     selectedPath: null,
     openFile: null,
+    entryPoint: null,
     fileIssue: null,
     notice: null,
     opening: false,
@@ -125,6 +126,55 @@ describe("App shell — viewport and preview", () => {
 
     expect(screen.getByTestId("canvas-mode")).toHaveTextContent("preview");
     expect(screen.getByTestId("status-mode")).toHaveTextContent("preview");
+  });
+});
+
+describe("App shell — entry point", () => {
+  it("shows the entry page and opens it when clicked", async () => {
+    const read = vi.fn().mockResolvedValue({
+      relativePath: "index.html",
+      text: "<!doctype html><title>Home</title>",
+      hash: "d".repeat(64),
+    });
+    Reflect.set(window, "astra", {
+      ping: async () => ({ pong: true, nonce: "renderer-ready" }),
+      getAppVersion: async () => "0.1.0",
+      pickProjectFolder: async () => "C:\\Projects\\site",
+      projectOpen: async () => ({
+        root: "C:\\Projects\\site",
+        entries: [{ name: "index.html", relativePath: "index.html", kind: "file" }],
+      }),
+      projectReadFile: read,
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /open a project folder/i }));
+
+    const entry = await screen.findByTestId("entry-point");
+    expect(entry).toHaveTextContent("Entry: index.html");
+
+    fireEvent.click(entry);
+    await vi.waitFor(() => {
+      expect(read).toHaveBeenCalledWith("index.html");
+    });
+    expect(screen.getByText(/<title>Home<\/title>/)).toBeInTheDocument();
+  });
+
+  it("says so honestly when the project has no entry page", async () => {
+    Reflect.set(window, "astra", {
+      ping: async () => ({ pong: true, nonce: "renderer-ready" }),
+      getAppVersion: async () => "0.1.0",
+      pickProjectFolder: async () => "C:\\Projects\\plain",
+      projectOpen: async () => ({
+        root: "C:\\Projects\\plain",
+        entries: [{ name: "about.html", relativePath: "about.html", kind: "file" }],
+      }),
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /open a project folder/i }));
+
+    expect(await screen.findByTestId("no-entry-point")).toHaveTextContent("No entry page");
   });
 });
 

@@ -47,6 +47,7 @@ beforeEach(() => {
     expanded: {},
     selectedPath: null,
     openFile: null,
+    entryPoint: null,
     fileIssue: null,
     notice: null,
     opening: false,
@@ -104,7 +105,80 @@ describe("project-store", () => {
     expect(state.root).toBe("C:\\Projects\\demo");
     expect(state.name).toBe("demo");
     expect(state.entriesByDirectory[ROOT_DIRECTORY]).toHaveLength(2);
+    expect(state.entryPoint).toBe("index.html");
     expect(document.title).toBe("demo — Astra");
+  });
+
+  it("reports no entry point for a project without index.html", async () => {
+    installBridge({
+      pickProjectFolder: async () => "C:\\Projects\\plain",
+      projectOpen: vi.fn().mockResolvedValue({
+        root: "C:\\Projects\\plain",
+        entries: [{ name: "about.html", relativePath: "about.html", kind: "file" }],
+      }),
+    });
+
+    await useProjectStore.getState().openProject();
+    expect(useProjectStore.getState().entryPoint).toBe(null);
+  });
+
+  it("keeps the entry point fresh when the watcher reports it created or deleted", async () => {
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce([{ name: "about.html", relativePath: "about.html", kind: "file" }])
+      .mockResolvedValueOnce([
+        { name: "about.html", relativePath: "about.html", kind: "file" },
+        { name: "index.html", relativePath: "index.html", kind: "file" },
+      ])
+      .mockResolvedValueOnce([{ name: "about.html", relativePath: "about.html", kind: "file" }]);
+    installBridge({
+      getProjectState: async () => ({ root: "C:\\Projects\\x" }),
+      projectList: list,
+    });
+
+    await useProjectStore.getState().hydrate();
+    expect(useProjectStore.getState().entryPoint).toBe(null);
+
+    // The watcher saw index.html appear at the root.
+    await useProjectStore.getState().applyFsChanges([
+      { type: "created", relativePath: "index.html", kind: "file" },
+    ]);
+    expect(useProjectStore.getState().entryPoint).toBe("index.html");
+
+    // …and then disappear.
+    await useProjectStore.getState().applyFsChanges([
+      { type: "deleted", relativePath: "index.html", kind: "file" },
+    ]);
+    expect(useProjectStore.getState().entryPoint).toBe(null);
+  });
+
+  it("opens the entry page through openEntryPoint, and is a no-op without one", async () => {
+    const read = vi.fn().mockResolvedValue({
+      relativePath: "index.html",
+      text: "<!doctype html><title>Home</title>",
+      hash: "c".repeat(64),
+    });
+    installBridge({
+      pickProjectFolder: async () => "C:\\Projects\\demo",
+      projectOpen: vi.fn().mockResolvedValue({
+        root: "C:\\Projects\\demo",
+        entries: [{ name: "index.html", relativePath: "index.html", kind: "file" }],
+      }),
+      projectReadFile: read,
+    });
+
+    await useProjectStore.getState().openProject();
+    await useProjectStore.getState().openEntryPoint();
+
+    expect(read).toHaveBeenCalledWith("index.html");
+    expect(useProjectStore.getState().openFile?.text).toContain("<title>Home</title>");
+    expect(useProjectStore.getState().selectedPath).toBe("index.html");
+
+    // No entry: the action must not guess a file.
+    useProjectStore.setState({ entryPoint: null });
+    read.mockClear();
+    await useProjectStore.getState().openEntryPoint();
+    expect(read).not.toHaveBeenCalled();
   });
 
   it("loads directory entries on first expand and caches them", async () => {

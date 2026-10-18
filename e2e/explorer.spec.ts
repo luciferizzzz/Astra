@@ -22,6 +22,7 @@ const APP_ROOT = process.cwd();
 let app: ElectronApplication;
 let tempRoot: string;
 let projectRoot: string;
+let plainRoot: string;
 
 test.beforeAll(async () => {
   // Nested under a folder literally named "sample-project": the folder name is
@@ -33,6 +34,11 @@ test.beforeAll(async () => {
   await writeFile(join(projectRoot, "index.html"), "<!doctype html><title>Explorer</title>\n");
   await writeFile(join(projectRoot, "style.css"), "body { margin: 0; }\n");
   await writeFile(join(projectRoot, "assets", "logo.svg"), "<svg xmlns='http://www.w3.org/2000/svg'/>\n");
+
+  // A second project with no index.html — the entry point must admit it.
+  plainRoot = join(tempRoot, "plain-project");
+  await mkdir(plainRoot);
+  await writeFile(join(plainRoot, "about.html"), "<!doctype html><title>Plain</title>\n");
 
   app = await electron.launch({ args: [APP_ROOT] });
 
@@ -58,6 +64,9 @@ test("opens a project from the toolbar and renders its file tree", async () => {
   await expect(page.getByTestId("project-name")).toHaveText("sample-project");
   expect(await page.title()).toBe("sample-project — Astra");
 
+  // The entry page is detected from the root and named in the toolbar.
+  await expect(page.getByTestId("entry-point")).toHaveText("Entry: index.html");
+
   // Root entries are listed with a badge per type (FR-B02, FR-B03).
   await expect(page.getByTestId("tree-file-index.html")).toBeVisible();
   await expect(page.getByTestId("tree-file-style.css")).toBeVisible();
@@ -82,4 +91,32 @@ test("expands a directory lazily and closes back to the welcome state", async ()
   await expect(page.getByRole("tree", { name: "Project files" })).toHaveCount(0);
   await expect(page.getByText(/Open a project folder to see its files here/)).toBeVisible();
   expect(await page.title()).toBe("Astra");
+});
+
+test("opens the entry page from the toolbar", async () => {
+  const page = await app.firstWindow();
+
+  // Reopen the sample project — the picker is still stubbed to it.
+  await page.getByRole("button", { name: "Open a project folder" }).click();
+  const entry = page.getByTestId("entry-point");
+  await expect(entry).toHaveText("Entry: index.html");
+
+  // The entry button puts the page in the code editor without a tree detour.
+  await entry.click();
+  await expect(page.getByText(/<title>Explorer<\/title>/)).toBeVisible();
+});
+
+test("admits when a project has no entry page", async () => {
+  const page = await app.firstWindow();
+
+  // Repoint the stubbed picker at the project that has no index.html.
+  await app.evaluate(({ dialog }, root) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [root] });
+  }, plainRoot);
+
+  await page.getByRole("button", { name: "Open a project folder" }).click();
+
+  await expect(page.getByTestId("project-name")).toHaveText("plain-project");
+  await expect(page.getByTestId("no-entry-point")).toHaveText("No entry page");
+  await expect(page.getByTestId("entry-point")).toHaveCount(0);
 });

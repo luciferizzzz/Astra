@@ -27,8 +27,10 @@ export default function Header() {
   const togglePreview = useAppStore((state) => state.togglePreview);
   const openSettings = useAppStore((state) => state.openSettings);
   const projectName = useProjectStore((state) => state.name);
+  const entryPoint = useProjectStore((state) => state.entryPoint);
   const openProject = useProjectStore((state) => state.openProject);
   const closeProject = useProjectStore((state) => state.closeProject);
+  const openEntryPoint = useProjectStore((state) => state.openEntryPoint);
 
   return (
     <header
@@ -67,6 +69,22 @@ export default function Header() {
             >
               Close Project
             </button>
+            {entryPoint !== null ? (
+              <button
+                type="button"
+                onClick={() => void openEntryPoint()}
+                className={LIVE_BUTTON}
+                title="Open the project's entry page"
+                aria-label={`Open the entry page (${entryPoint})`}
+                data-testid="entry-point"
+              >
+                Entry: {entryPoint}
+              </button>
+            ) : (
+              <span className="text-xs text-fg-faint" data-testid="no-entry-point">
+                No entry page
+              </span>
+            )}
           </>
         ) : (
           <span className="text-xs text-fg-faint">No project open</span>
