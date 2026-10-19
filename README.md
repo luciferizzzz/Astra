@@ -12,23 +12,25 @@ Windows 10/11 · Electron 44 · React 19 + TypeScript + Vite
 
 ## Status
 
-**Phase 0 prerequisites — scaffold complete, product not yet started.**
+**Phase 0 ✅ and Phase 1 ✅ — sync engine validated, desktop foundation complete
+(all 5 deliverables), Windows installer verified.**
 
-This repository currently contains the Electron scaffold, the hardened window/IPC contract, the
-packaging configuration and the CI skeleton. The visual editor, the parser layer and the
-synchronisation engine described in the PRD **have not been implemented yet**.
+This repository contains the byte-preserving synchronisation engine (`src/core/`), the hardened
+Electron shell, the project-loading pipeline (scoped filesystem + watcher + explorer + entry
+point detection) and a self-contained NSIS installer. The visual canvas and the editing loop
+(Phase 2+) from the PRD roadmap **are not implemented yet**.
 
 Everything below has been verified end-to-end on Windows:
 
 | Gate | Result |
 | --- | --- |
 | `npm run typecheck` | 0 errors |
-| `npm run test` | 50 passing, 5 files |
-| `npm run build` | main 8.75 kB · preload 1.01 kB · renderer 568.78 kB |
-| `npm run test:e2e` | 4 passing against the real Electron shell |
-| `npm run package` | `release/win-unpacked`, app.asar 1.52 MB |
-| packaged exe | boots, renderer sandboxed (`--enable-sandbox`) |
-| `npm run dev` | boots, clean shutdown |
+| `npm run test` | 283 passing, 24 files |
+| `npm run build` | 3 processes emitted (renderer 622.36 kB) |
+| `npm run test:e2e` | 19 passing against the real Electron shell |
+| `npm run dev` | renders cleanly (required for every slice to be called done) |
+| `npm run make` | `release/Astra Setup 0.1.0.exe` — 106.55 MB, fully self-contained |
+| installer cycle | silent install → boots with **0 outbound TCP connections** → silent uninstall, all residue removed |
 
 ---
 
@@ -150,7 +152,11 @@ round trip still works across the sandbox boundary.
 
 ## Known Debt
 
-- **No application icon** — electron-builder falls back to the default Electron icon.
+- **No application icon** — electron-builder falls back to the default Electron icon (visible in
+  the build log and in the installer).
+- **No linter** — ESLint is not wired up yet (PRD NFR-010, §10.5).
+- **No `CHANGELOG.md` in this repo** — the changelog lives in the project vault for now.
+- **Node version drift** — CI runs Node 22 while local development uses Node 24.
 - **8 moderate npm advisories** — the `sprintf-js` chain pulled in via `electron-builder`
   → `app-builder-lib` → `@electron/get` → `global-agent` → `roarr`. Dev-only tooling, no patched
   version exists, and the shipped asar contains no `node_modules` at all. CI blocks on
