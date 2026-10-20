@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { IPC_CHANNELS, MENU_COMMANDS, type MenuCommand, type ProjectFsEvent } from "../shared/ipc";
 import type { SettingsTheme } from "../shared/settings";
+import { createCanvasView, registerPreviewScheme, setPreviewRootReader } from "./canvas-view";
 import { registerIpcHandlers } from "./ipc";
 import { buildMenuTemplate } from "./menu";
 import { openPreview } from "./preview";
@@ -45,6 +46,19 @@ const project = createProjectSession({
     console.warn(`[astra] filesystem watcher fell back to polling: ${reason}`);
   },
 });
+
+/**
+ * The canvas preview: a second, untrusted renderer laid over the UI window.
+ *
+ * Created at module scope so the `will-quit` path can destroy it alongside the
+ * project, and so the read handler has a single owner. It paints nothing until
+ * the UI reports a rectangle — see `canvas-view.ts`.
+ */
+const canvas = createCanvasView();
+// The handler serves only the open project, measured at request time rather
+// than captured once, so switching projects cannot leave it pointing at the old
+// root.
+setPreviewRootReader(() => project.root);
 
 /**
  * Where the renderer lives.
@@ -117,6 +131,10 @@ function createMainWindow(target: TrustedRendererTarget, backgroundColor: string
 
   window.once("ready-to-show", () => window.show());
   hardenWebContents(window.webContents, target);
+
+  // The canvas is a child view of this window, not a region of its document:
+  // it is composited on top of the UI, and the UI tells us where (PRD §11.2).
+  canvas.attachTo(window.contentView);
 
   if (target.devServerUrl) {
     void window.loadURL(`${target.devServerUrl}/`);
@@ -224,6 +242,7 @@ app.whenReady().then(async () => {
     // whenever that session changes — including after a *failed* open, which
     // still leaves the previous project closed.
     refreshMenu: installApplicationMenu,
+    canvas,
   });
 
   // Installed before anything is awaited, not after. The menu needs neither the
@@ -257,8 +276,28 @@ function installPreviewTestSeam(): void {
   if (process.env["ASTRA_E2E"] !== "1") {
     return;
   }
-  const scope = globalThis as { __astraOpenPreview?: (url: string) => number };
+  const scope = globalThis as {
+    __astraOpenPreview?: (url: string) => number;
+    __astraCanvas?: () => {
+      url: string | null;
+      visible: boolean;
+      bounds: { x: number; y: number; width: number; height: number } | null;
+      webContentsId: number | null;
+    };
+  };
   scope.__astraOpenPreview = (url) => openPreview(url).id;
+  // The canvas lives in the main process, so a test cannot find its renderer by
+  // asking Playwright for pages. This publishes the facts a test needs — where
+  // it is, what it loaded, whether it is showing — and nothing else.
+  scope.__astraCanvas = () => {
+    const contents = canvas.contents;
+    return {
+      url: contents?.getURL() ?? null,
+      visible: canvas.isVisible(),
+      bounds: canvas.currentBounds(),
+      webContentsId: contents?.id ?? null,
+    };
+  };
 }
 
 // Installed at module load rather than inside `whenReady`, so a test that
@@ -275,7 +314,13 @@ app.on("window-all-closed", () => {
 // a stale watcher against the same project files.
 app.on("will-quit", () => {
   void project.close();
+  canvas.destroy();
 });
+
+// Declared before the app is ready, which is the only moment Electron accepts
+// a privileged scheme (PRD §11.7: the preview is served from a scheme with no
+// meaning outside the open project).
+registerPreviewScheme();
 
 // Belt and braces. This fires while `new BrowserWindow()` is still constructing,
 // so it applies to every window — including any added later — before that window

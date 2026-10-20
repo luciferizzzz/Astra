@@ -53,6 +53,19 @@ export const IPC_CHANNELS = {
    * chosen path, or `null` when the dialog was dismissed.
    */
   projectPickFolder: "astra:project:pick-folder",
+  /**
+   * Tell the main process where the canvas surface is, and what it should show.
+   *
+   * The canvas is a separate Electron renderer (`WebContentsView`) laid over the
+   * UI window, so the main process — which owns that view — needs two things the
+   * renderer alone knows: the rectangle the surface currently occupies, and
+   * which project file to load into it. The renderer reports both; the main
+   * process never guesses a layout.
+   *
+   * Sending `entryPath: null` (or a zero-area rectangle) hides the surface. No
+   * project handle, path or URL crosses this channel in the other direction.
+   */
+  canvasSurface: "astra:canvas:surface",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -169,6 +182,50 @@ export interface ProjectFsChange {
 /** Push payload for `astra:project:fs-event`: a batch, because bursts coalesce. */
 export interface ProjectFsEvent {
   readonly changes: readonly ProjectFsChange[];
+}
+
+/* ------------------------------------------------------------------------- *
+ * Canvas surface contract (Phase 2 — the sandboxed preview over the shell).
+ *
+ * The canvas is its own Electron renderer, not a region of the UI document.
+ * This payload is how the UI tells the main process where to put it and what
+ * to load — the only two facts the view needs and the only two the renderer
+ * can be trusted to know.
+ * ------------------------------------------------------------------------- */
+
+/** A rectangle in the UI window's client coordinates, in CSS pixels. */
+export interface CanvasBounds {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * Payload for `astra:canvas:surface`.
+ *
+ * `entryPath` names a file *inside the open project*, in the contract's
+ * forward-slash form — the same normaliser every other project path goes
+ * through validates it, so a canvas cannot name a file the explorer could not.
+ * A `null` entry means "nothing to render" and hides the surface.
+ */
+export interface CanvasSurfaceRequest {
+  readonly bounds: CanvasBounds | null;
+  readonly entryPath: string | null;
+  /**
+   * Changes whenever the preview must be reloaded even though the path did not
+   * change — an external edit to the entry page, a reload after a save. The main
+   * process compares it with the value it last loaded and reloads on a mismatch.
+   */
+  readonly revision: number;
+}
+
+/** Reply for `astra:canvas:surface`: what the main process actually did. */
+export interface CanvasSurfaceResponse {
+  /** True when a document is now displayed in the surface. */
+  readonly shown: boolean;
+  /** The file that was loaded, or `null` when the surface is hidden. */
+  readonly relativePath: string | null;
 }
 
 /**

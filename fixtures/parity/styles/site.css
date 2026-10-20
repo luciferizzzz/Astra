@@ -1,0 +1,95 @@
+/*
+ * The parity fixture's stylesheet.
+ *
+ * Every value here is one the canvas test asserts as a *computed* style, so the
+ * file doubles as the expectation table: change a value and the test must be
+ * changed with it. Unitless-zero and shorthand forms are avoided deliberately —
+ * a computed style reports the longhand, resolved value, and asserting the
+ * short form would be asserting the wrong thing.
+ */
+
+:root {
+  --fixture-accent: rgb(12, 34, 56);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 16px;
+  font-family: Georgia, serif;
+  font-size: 16px;
+  color: rgb(20, 20, 20);
+  background-color: rgb(250, 250, 245);
+}
+
+#site-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom-width: 2px;
+  border-bottom-style: solid;
+  border-bottom-color: rgb(12, 34, 56);
+}
+
+#title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+  color: rgb(12, 34, 56);
+}
+
+.nav-link {
+  color: rgb(12, 34, 56);
+  text-decoration-line: underline;
+}
+
+#content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.prose {
+  font-style: italic;
+  letter-spacing: 0.5px;
+}
+
+#list {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+}
+
+.item {
+  padding: 4px 8px;
+  border-top-left-radius: 6px;
+  background-color: rgb(230, 235, 240);
+}
+
+#badge {
+  width: 40px;
+  height: 40px;
+}
+
+#site-footer {
+  margin-top: 24px;
+  color: rgb(90, 90, 90);
+}
+
+/* A media query the responsive presets exercise: the canvas is 768px wide in
+   the tablet preset and 390px in mobile, both below this threshold. */
+@media (max-width: 800px) {
+  #list {
+    flex-direction: column;
+  }
+
+  #title {
+    font-size: 20px;
+  }
+}

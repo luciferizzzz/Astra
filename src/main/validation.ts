@@ -10,7 +10,7 @@
  * unit-testable under Vitest. See PRD §14.4 (SEC-019).
  */
 
-import type { PingRequest } from "../shared/ipc";
+import type { CanvasBounds, CanvasSurfaceRequest, PingRequest } from "../shared/ipc";
 import { coerceSettingValue, SETTINGS_KEYS, type AstraSettings } from "../shared/settings";
 import { normalizeRelativePath, UnsafePathError } from "./project-paths";
 
@@ -214,4 +214,63 @@ function safeNormalize(channel: string, value: unknown): string {
     }
     throw error;
   }
+}
+
+/** A surface larger than any plausible window is a bug or an attempt, not a layout. */
+const MAX_CANVAS_DIMENSION = 100_000;
+
+/**
+ * Validates the payload of `astra:canvas:surface`.
+ *
+ * The rectangle decides where a *child renderer* is placed and the path decides
+ * which file it may load, so both are shape-checked before either is used. The
+ * path goes through the same normaliser the filesystem adapter uses; the
+ * rectangle must be finite, non-negative numbers — `NaN` and `Infinity` from a
+ * broken layout would otherwise reach `setBounds` and be answered by Electron
+ * with a silently ignored call.
+ */
+export function validateCanvasSurfacePayload(
+  channel: string,
+  payload: unknown,
+): CanvasSurfaceRequest {
+  const record = requirePlainObject(channel, payload);
+  return {
+    bounds: validateCanvasBounds(channel, record["bounds"]),
+    entryPath: validateCanvasEntryPath(channel, record["entryPath"]),
+    revision: validateRevision(channel, record["revision"]),
+  };
+}
+
+function validateCanvasBounds(channel: string, value: unknown): CanvasBounds | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new IpcValidationError(channel, `"bounds" must be a plain object, received ${describe(value)}`);
+  }
+
+  const record = value as Record<string, unknown>;
+  const bounds = {} as { -readonly [K in keyof CanvasBounds]: CanvasBounds[K] };
+  for (const key of ["x", "y", "width", "height"] as const) {
+    const raw = record[key];
+    if (typeof raw !== "number" || !Number.isFinite(raw)) {
+      throw new IpcValidationError(channel, `"bounds.${key}" must be a finite number, received ${describe(raw)}`);
+    }
+    if (raw < 0 || raw > MAX_CANVAS_DIMENSION) {
+      throw new IpcValidationError(channel, `"bounds.${key}" is out of range (${raw})`);
+    }
+    bounds[key] = raw;
+  }
+  return bounds;
+}
+
+function validateCanvasEntryPath(channel: string, value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  return safeNormalize(channel, value);
+}
+
+function validateRevision(channel: string, value: unknown): number {
+  if (value === undefined || value === null) return 0;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new IpcValidationError(channel, `"revision" must be a non-negative integer, received ${describe(value)}`);
+  }
+  return value;
 }

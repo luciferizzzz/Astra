@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   IpcValidationError,
+  validateCanvasSurfacePayload,
   validateProjectListPayload,
   validateProjectOpenPayload,
   validateProjectRelativePathPayload,
@@ -136,5 +137,68 @@ describe("validateProjectWritePayload", () => {
     expect(() =>
       validateProjectWritePayload(WRITE, { relativePath: "../escape.html", text: "x" }),
     ).toThrow(IpcValidationError);
+  });
+});
+
+describe("validateCanvasSurfacePayload", () => {
+  const CANVAS = "astra:canvas:surface";
+  const bounds = { x: 10, y: 20, width: 800, height: 600 };
+
+  it("accepts a rectangle, an entry path and a revision", () => {
+    expect(
+      validateCanvasSurfacePayload(CANVAS, { bounds, entryPath: "index.html", revision: 3 }),
+    ).toEqual({ bounds, entryPath: "index.html", revision: 3 });
+  });
+
+  it("accepts a hidden surface: null bounds and a null entry", () => {
+    expect(
+      validateCanvasSurfacePayload(CANVAS, { bounds: null, entryPath: null, revision: 0 }),
+    ).toEqual({ bounds: null, entryPath: null, revision: 0 });
+  });
+
+  it("normalises the entry path the way every other project path is normalised", () => {
+    expect(
+      validateCanvasSurfacePayload(CANVAS, {
+        bounds,
+        entryPath: "pages\\home.html",
+        revision: 1,
+      }).entryPath,
+    ).toBe("pages/home.html");
+  });
+
+  it("refuses traversal in the entry path", () => {
+    for (const entryPath of ["../secret.html", "C:/Windows/win.ini", "/etc/passwd", "a/../../b.html"]) {
+      expect(() => validateCanvasSurfacePayload(CANVAS, { bounds, entryPath, revision: 0 })).toThrow(
+        IpcValidationError,
+      );
+    }
+  });
+
+  it("refuses a rectangle that is not four finite numbers", () => {
+    for (const bad of [
+      { x: 0, y: 0, width: Number.NaN, height: 10 },
+      { x: 0, y: 0, width: Number.POSITIVE_INFINITY, height: 10 },
+      { x: -5, y: 0, width: 10, height: 10 },
+      { x: "0", y: 0, width: 10, height: 10 },
+      { x: 0, y: 0, width: 10 },
+    ]) {
+      expect(() => validateCanvasSurfacePayload(CANVAS, { bounds: bad, entryPath: null })).toThrow(
+        IpcValidationError,
+      );
+    }
+  });
+
+  it("refuses a revision that is not a non-negative integer", () => {
+    for (const revision of [-1, 1.5, "1", Number.NaN]) {
+      expect(() =>
+        validateCanvasSurfacePayload(CANVAS, { bounds, entryPath: null, revision }),
+      ).toThrow(/revision/);
+    }
+  });
+
+  it("refuses a payload that is not a plain object", () => {
+    for (const payload of [null, undefined, [], "canvas", 42]) {
+      expect(() => validateCanvasSurfacePayload(CANVAS, payload)).toThrow(IpcValidationError);
+    }
   });
 });

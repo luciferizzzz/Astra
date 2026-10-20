@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Render parity fixture</title>
+<link rel="stylesheet" href="styles/site.css">
+</head>
+<body>
+<!--
+  A small, self-contained site used to prove the canvas renders real project
+  markup with its linked CSS and JS applied, and that what it renders matches
+  the same bytes opened in a plain browser. Nothing here depends on a server or
+  the network — every reference is a file in this folder.
+
+  The ids are load-bearing: e2e/canvas.spec.ts addresses them directly, and the
+  values it asserts are the ones styles/site.css authors.
+-->
+<header id="site-header">
+  <h1 id="title">Parity fixture</h1>
+  <nav id="nav">
+    <a id="nav-home" class="nav-link" href="#home">Home</a>
+    <a id="nav-about" class="nav-link" href="#about">About</a>
+  </nav>
+</header>
+
+<main id="content">
+  <p id="lead" class="prose">Styled paragraph.</p>
+  <ul id="list">
+    <li class="item">One</li>
+    <li class="item">Two</li>
+    <li class="item">Three</li>
+  </ul>
+  <img id="badge" src="assets/badge.svg" alt="Badge">
+</main>
+
+<footer id="site-footer">
+  <span id="status">script did not run</span>
+</footer>
+
+<script src="scripts/site.js"></script>
+</body>
+</html>

@@ -1,10 +1,12 @@
 import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS } from "../shared/ipc";
+import type { CanvasView } from "./canvas-view";
 import type { ProjectSession } from "./project-session";
 import type { SettingsStore } from "./settings-store";
 import { isTrustedRendererUrl, type TrustedRendererTarget } from "./trusted-url";
 import {
   IpcValidationError,
+  validateCanvasSurfacePayload,
   validatePingPayload,
   validateProjectListPayload,
   validateProjectOpenPayload,
@@ -25,6 +27,8 @@ export interface ProjectHost {
   pickProjectFolder: () => Promise<string | null>;
   /** Re-installs the application menu so its enabled state matches the session. */
   refreshMenu: () => void;
+  /** The canvas surface, which this module places and points at a file. */
+  canvas: CanvasView;
 }
 
 /**
@@ -121,6 +125,26 @@ export function registerIpcHandlers(
       payload,
     );
     return project.writeTextFile(relativePath, text, expectedHash);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.canvasSurface, (event, payload) => {
+    assertTrustedSender(event, IPC_CHANNELS.canvasSurface, target);
+    const { bounds, entryPath, revision } = validateCanvasSurfacePayload(
+      IPC_CHANNELS.canvasSurface,
+      payload,
+    );
+
+    const root = project.root;
+    // No project, or nothing to render: hide. A stale entry path from a closed
+    // project must not keep a document on screen.
+    if (root === null || entryPath === null || bounds === null) {
+      if (root === null) host.canvas.destroy();
+      else host.canvas.hide();
+      return { shown: false, relativePath: null };
+    }
+
+    host.canvas.show(root, entryPath, bounds, revision);
+    return { shown: true, relativePath: entryPath };
   });
 }
 

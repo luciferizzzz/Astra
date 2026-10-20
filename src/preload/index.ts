@@ -71,6 +71,7 @@ const api: AstraApi = {
       ...(expectedHash !== undefined ? { expectedHash } : {}),
     }),
   getProjectState: () => ipcRenderer.invoke(IPC_CHANNELS.projectGetState),
+  setCanvasSurface: (request) => ipcRenderer.invoke(IPC_CHANNELS.canvasSurface, request),
   onProjectFsEvent: (listener) => {
     const handler = (_event: unknown, payload: unknown): void => {
       if (isProjectFsEvent(payload)) listener(payload.changes);

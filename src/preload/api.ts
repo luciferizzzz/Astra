@@ -1,5 +1,7 @@
 import type { AstraSettings } from "../shared/settings";
 import type {
+  CanvasSurfaceRequest,
+  CanvasSurfaceResponse,
   MenuCommand,
   PingResponse,
   ProjectFileContents,
@@ -68,4 +70,12 @@ export interface AstraApi {
    * arrives from the OS as a burst of events.
    */
   onProjectFsEvent(listener: (changes: readonly ProjectFsChange[]) => void): () => void;
+  /**
+   * Tells the main process where the canvas surface is and what to load.
+   *
+   * The canvas is a separate renderer laid over the UI window, so its rectangle
+   * is reported rather than derived: only the renderer knows the layout. Pass
+   * `null` bounds or a `null` entry path to hide it.
+   */
+  setCanvasSurface(request: CanvasSurfaceRequest): Promise<CanvasSurfaceResponse>;
 }
