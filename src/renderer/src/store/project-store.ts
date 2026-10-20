@@ -139,7 +139,9 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
     const api = bridge();
     if (!api?.pickProjectFolder) return;
     set({ error: null });
-    let picked: string | null = null;
+    // Declared without an initializer: every path either assigns it or returns,
+    // so an initial `null` would be dead (and lint says as much).
+    let picked: string | null;
     try {
       picked = await api.pickProjectFolder();
     } catch (error) {

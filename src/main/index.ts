@@ -7,6 +7,7 @@ import {
   session,
   type OpenDialogOptions,
 } from "electron";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { IPC_CHANNELS, MENU_COMMANDS, type MenuCommand, type ProjectFsEvent } from "../shared/ipc";
@@ -70,9 +71,24 @@ function surfaceColorFor(theme: SettingsTheme): string {
   return dark ? "#0a0a0b" : "#f4f4f5";
 }
 
+/**
+ * The window icon, for development only.
+ *
+ * A packaged window inherits its icon from the executable (which electron-builder
+ * takes from `resources/icon.ico`), but during `npm run dev` the host is
+ * `electron.exe` — so the window would wear the default Electron icon. Point it
+ * at the real file instead; absent or unset, packaged builds are untouched.
+ */
+function devWindowIcon(): string | undefined {
+  if (app.isPackaged) return undefined;
+  const icon = join(app.getAppPath(), "resources", "icon.ico");
+  return existsSync(icon) ? icon : undefined;
+}
+
 function createMainWindow(target: TrustedRendererTarget, backgroundColor: string): BrowserWindow {
   const window = new BrowserWindow({
     title: "Astra",
+    icon: devWindowIcon(),
     width: 1440,
     height: 900,
     minWidth: 1024,

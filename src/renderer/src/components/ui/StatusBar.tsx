@@ -19,7 +19,11 @@ const VIEWPORT_LABELS = { desktop: "Desktop", tablet: "Tablet", mobile: "Mobile"
  * edit or preview mode.
  */
 export default function StatusBar() {
-  const [status, setStatus] = useState<BridgeStatus>("probing");
+  // The bridge is either present (probed below) or this page was opened from a
+  // plain browser, where there is no preload behind it. Deciding the absent case
+  // at initialization keeps it out of the effect body entirely — a synchronous
+  // setState inside an effect is a cascading render for a constant (NFR-010).
+  const [status, setStatus] = useState<BridgeStatus>(() => (window.astra ? "probing" : "unavailable"));
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const viewport = useAppStore((state) => state.viewport);
   const mode = useAppStore((state) => state.mode);
@@ -27,30 +31,25 @@ export default function StatusBar() {
   useEffect(() => {
     let cancelled = false;
     const bridge = window.astra;
+    if (!bridge) return; // already "unavailable" from the initializer above
 
-    if (!bridge) {
-      // Rendered from a plain browser against the Vite dev server, where there
-      // is no preload behind the page. Say so rather than look connected.
-      setStatus("unavailable");
-    } else {
-      void bridge
-        .ping("renderer-ready")
-        .then((reply) => {
-          if (!cancelled && reply.pong) setStatus("connected");
-        })
-        .catch(() => {
-          if (!cancelled) setStatus("unavailable");
-        });
+    void bridge
+      .ping("renderer-ready")
+      .then((reply) => {
+        if (!cancelled && reply.pong) setStatus("connected");
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("unavailable");
+      });
 
-      void bridge
-        .getAppVersion()
-        .then((version) => {
-          if (!cancelled) setAppVersion(version);
-        })
-        .catch(() => {
-          if (!cancelled) setAppVersion(null);
-        });
-    }
+    void bridge
+      .getAppVersion()
+      .then((version) => {
+        if (!cancelled) setAppVersion(version);
+      })
+      .catch(() => {
+        if (!cancelled) setAppVersion(null);
+      });
 
     return () => {
       cancelled = true;
