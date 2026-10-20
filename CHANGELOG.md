@@ -12,6 +12,38 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Phase 2 — sandboxed canvas renders the real site (2026-10-20)
+
+#### Added
+
+- **Canvas preview protocol** — `astra-preview://project/<path>` (`src/main/preview-protocol.ts`,
+  `src/main/canvas-view.ts`): a privileged, read-only scheme rooted at the open project. The URL
+  grammar admits one host and a project-relative path; containment is re-checked against the
+  canonical root, so neither `..` nor a symlink reaches outside the project. Ignored directories
+  (`node_modules`, `.git`, `.astra`) are refused, every response carries `nosniff`/`no-store`, and
+  a preview-scoped CSP allows only the preview scheme, `data:` and `blob:`.
+- **Sandboxed canvas renderer** — the site now paints in its own `WebContentsView`
+  (`previewWebPreferences`: no preload, no Node, sandboxed, in-memory session) laid over the
+  rectangle the UI reserves, instead of a placeholder frame. Implements FR-C01.
+- **`astra:canvas:surface` channel** — the renderer reports its measured rectangle, the entry path
+  and a revision; the main process validates both (finite bounds, normalised path) and places or
+  hides the view. See `src/shared/ipc.ts`.
+- **Render-parity fixture** — `fixtures/parity/`: a small self-contained site whose CSS is the
+  e2e expectation table.
+
+#### Changed
+
+- **`Canvas.tsx` measures instead of styling itself into place** — a `ResizeObserver` reports the
+  surface rectangle, and the measured box is the device viewport itself, so the presets (Desktop
+  fluid, Tablet 768, Mobile 390) mean what they say.
+
+#### Security
+
+- The preview CSP is intentionally *separate* from the renderer's (`shared/csp.ts`), which keeps
+  `frame-src 'none'` and must not be loosened to accommodate the preview. `'unsafe-inline'` and
+  `'unsafe-eval'` are allowed in the preview because it holds no privilege — no Node, no bridge, no
+  filesystem, no network — so the worst `eval` can do is run more of the project's own JavaScript.
+
 ### Phase 1 — debt cleanup (2026-10-20)
 
 #### Added
