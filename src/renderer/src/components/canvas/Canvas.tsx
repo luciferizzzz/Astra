@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { VIEWPORT_WIDTHS, useAppStore } from "@/store/app-store";
 import { bridge } from "@/store/bridge";
 import { useProjectStore } from "@/store/project-store";
+import { useCanvasStore } from "@/store/canvas-store";
 
 /**
  * The design surface.
@@ -36,6 +37,12 @@ export default function Canvas() {
   const entryPoint = useProjectStore((state) => state.entryPoint);
   const root = useProjectStore((state) => state.root);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const selection = useCanvasStore((state) => state.selection);
+  const subscribeCanvas = useCanvasStore((state) => state.subscribe);
+
+  useEffect(() => {
+    return subscribeCanvas();
+  }, [subscribeCanvas]);
 
   /**
    * Bumped whenever the entry page must be re-rendered even though its path did
@@ -130,6 +137,40 @@ export default function Canvas() {
         className="relative min-h-0 flex-1 rounded border border-dashed border-border-subtle"
         style={width === null ? { width: "100%" } : { width, maxWidth: "100%" }}
       >
+        {selection?.found && selection.rect ? (
+          <div
+            data-testid="canvas-selection-outline"
+            style={{
+              position: "absolute",
+              left: selection.rect.x,
+              top: selection.rect.y,
+              width: selection.rect.width,
+              height: selection.rect.height,
+              border: "1px solid #4f9bff",
+              pointerEvents: "none",
+              boxSizing: "border-box",
+            }}
+          >
+            {selection.tagName ? (
+              <span
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: -18,
+                  background: "#4f9bff",
+                  color: "#fff",
+                  fontSize: "10px",
+                  padding: "0 4px",
+                  lineHeight: "16px",
+                  borderRadius: "2px",
+                }}
+              >
+                {selection.tagName.toLowerCase()}
+                {selection.id ? `#${selection.id}` : ""}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         <div className="absolute inset-0 flex items-center justify-center p-6">
           {root !== null && entryPoint !== null ? (
             // The site is painted over this box by the main process; the text is

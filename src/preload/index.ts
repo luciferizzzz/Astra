@@ -72,6 +72,18 @@ const api: AstraApi = {
     }),
   getProjectState: () => ipcRenderer.invoke(IPC_CHANNELS.projectGetState),
   setCanvasSurface: (request) => ipcRenderer.invoke(IPC_CHANNELS.canvasSurface, request),
+  onCanvasSelection: (listener: (payload: import("../shared/ipc").CanvasSelectionPayload) => void) => {
+    const handler = (_event: unknown, payload: unknown): void => {
+      if (typeof payload === "object" && payload !== null) {
+        listener(payload as import("../shared/ipc").CanvasSelectionPayload);
+      }
+    };
+    ipcRenderer.on(IPC_CHANNELS.canvasSelection, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.canvasSelection, handler);
+    };
+  },
+  getCanvasTree: () => ipcRenderer.invoke(IPC_CHANNELS.canvasGetTree),
   onProjectFsEvent: (listener) => {
     const handler = (_event: unknown, payload: unknown): void => {
       if (isProjectFsEvent(payload)) listener(payload.changes);

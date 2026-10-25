@@ -66,6 +66,14 @@ export const IPC_CHANNELS = {
    * project handle, path or URL crosses this channel in the other direction.
    */
   canvasSurface: "astra:canvas:surface",
+  /** Preview (WebContentsView) → main: click coordinates from inside the page. */
+  canvasClick: "astra:canvas:click",
+  /** Main → renderer: element selected in canvas (path + metadata). */
+  canvasSelection: "astra:canvas:selection",
+  /** UI → main: request DOM tree snapshot from canvas for layer tree. */
+  canvasGetTree: "astra:canvas:get-tree",
+  /** Main → UI: DOM tree snapshot. */
+  canvasTree: "astra:canvas:tree",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -226,6 +234,44 @@ export interface CanvasSurfaceResponse {
   readonly shown: boolean;
   /** The file that was loaded, or `null` when the surface is hidden. */
   readonly relativePath: string | null;
+}
+
+/** Click event forwarded from preview preload (Option C). */
+export interface CanvasClickPayload {
+  readonly x: number;
+  readonly y: number;
+  readonly button: number;
+  readonly altKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly shiftKey: boolean;
+  readonly tagName: string | null;
+}
+
+/** Selection result reported to the UI (FR-C02/C06). */
+export interface CanvasSelectionPayload {
+  readonly found: boolean;
+  readonly selector?: string;
+  readonly tagName?: string;
+  readonly id?: string | null;
+  readonly className?: string | null;
+  readonly rect?: { x: number; y: number; width: number; height: number };
+  readonly path?: string[];
+  readonly reason?: string;
+}
+
+/** Layer tree node snapshot from canvas. */
+export interface CanvasTreeNode {
+  readonly tagName: string;
+  readonly id: string | null;
+  readonly className: string | null;
+  readonly selector: string;
+  readonly children: readonly CanvasTreeNode[];
+}
+
+/** Payload for canvas tree snapshot. */
+export interface CanvasTreePayload {
+  readonly root: CanvasTreeNode | null;
 }
 
 /**

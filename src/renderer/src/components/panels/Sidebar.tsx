@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AUTOSAVE_OFF } from "../../../../shared/settings";
 import { useAppStore } from "@/store/app-store";
 import { useProjectStore } from "@/store/project-store";
 import FileTree from "./FileTree";
+import { useCanvasTreeStore } from "@/store/canvas-tree-store";
 
 /**
  * The left panel: project navigation.
@@ -39,6 +40,14 @@ export default function Sidebar() {
   const openSettings = useAppStore((state) => state.openSettings);
   const root = useProjectStore((state) => state.root);
   const openProject = useProjectStore((state) => state.openProject);
+  const tree = useCanvasTreeStore((state) => state.tree);
+  const refreshTree = useCanvasTreeStore((state) => state.refresh);
+
+  useEffect(() => {
+    if (active === "Components") {
+      void refreshTree();
+    }
+  }, [active, refreshTree]);
 
 
   return (
@@ -108,10 +117,54 @@ export default function Sidebar() {
               Open Project
             </button>
           </div>
+        ) : active === "Components" ? (
+          <div className="flex flex-col gap-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-fg-subtle">Layer tree</span>
+              <button
+                type="button"
+                onClick={() => void refreshTree()}
+                className="rounded px-1 py-0.5 text-[10px] text-fg-faint hover:bg-surface-2"
+              >
+                Refresh
+              </button>
+            </div>
+            {tree?.root ? (
+              <LayerTreeNode node={tree.root} />
+            ) : (
+              <p className="leading-relaxed text-fg-faint">No canvas tree yet. Click an element on the canvas.</p>
+            )}
+          </div>
         ) : (
           <p className="text-xs leading-relaxed text-fg-faint">{EMPTY_STATE[active]}</p>
         )}
       </div>
     </aside>
+  );
+}
+
+function LayerTreeNode({ node }: { node: import("../../../../shared/ipc").CanvasTreeNode }) {
+  const [open, setOpen] = useState(true);
+  const hasChildren = node.children.length > 0;
+  const label = `${node.tagName.toLowerCase()}${node.id ? `#${node.id}` : ""}${node.className ? `.${node.className.trim().split(/\s+/).join(".")}` : ""}`;
+  return (
+    <div className="flex flex-col">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 rounded px-1 py-0.5 text-left text-fg-muted hover:bg-surface-2"
+        style={{ paddingLeft: "0.25rem" }}
+      >
+        {hasChildren ? <span className="text-[10px] text-fg-faint">{open ? "▾" : "▸"}</span> : <span className="w-2" />}
+        <span className="truncate">{label}</span>
+      </button>
+      {hasChildren && open ? (
+        <div className="ml-3 flex flex-col">
+          {node.children.map((child, idx) => (
+            <LayerTreeNode key={idx} node={child} />
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }

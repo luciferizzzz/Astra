@@ -80,7 +80,7 @@ describe("App shell", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Components" }));
     expect(screen.getByRole("tab", { name: "Components" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText(/saved components will be listed here/i)).toBeInTheDocument();
+    expect(screen.getByText(/No canvas tree yet/i)).toBeInTheDocument();
   });
 
   it("summarises settings in the sidebar instead of duplicating the form", () => {

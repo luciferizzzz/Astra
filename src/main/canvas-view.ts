@@ -1,4 +1,4 @@
-import { WebContentsView, protocol, session, type Session } from "electron";
+import { BrowserWindow, WebContentsView, ipcMain, protocol, session, type Session } from "electron";
 import { promises as fs } from "node:fs";
 import { realpath } from "node:fs/promises";
 import { joinUnderRoot, isWithinRoot, isIgnoredPath } from "./project-paths";
@@ -12,6 +12,7 @@ import {
   relativePathFromPreviewUrl,
   toWholePixels,
 } from "./preview-protocol";
+import { IPC_CHANNELS, type CanvasClickPayload, type CanvasSelectionPayload } from "../shared/ipc";
 import type { CanvasBounds } from "../shared/ipc";
 
 /**
@@ -242,6 +243,119 @@ export function createCanvasView(): CanvasView {
     if (host !== null) host.addChildView(created);
     view = created;
     return created;
+  }
+
+  // Listen for clicks from preview preload
+  try {
+    ipcMain.on(IPC_CHANNELS.canvasClick, async (_event, payload: CanvasClickPayload) => {
+      const targetView = view;
+      if (targetView === null || targetView.webContents.isDestroyed()) return;
+      if (!visible) return;
+      const contents = targetView.webContents;
+
+      // Hit-test: find element at coordinates. Run in page context.
+      const script = `(function(){
+        try {
+          var x = ${Number(payload.x)};
+          var y = ${Number(payload.y)};
+          var el = document.elementFromPoint(x,y);
+          if (!el) return {found:false};
+          // Build a simple selector/path
+          function selector(e){
+            if (!e || e === document.documentElement) return e.tagName.toLowerCase();
+            var name = e.tagName.toLowerCase();
+            if (e.id) return name + '#' + e.id;
+            var p = e.parentElement;
+            if (!p) return name;
+            var idx = 1;
+            var sib = e.previousElementSibling;
+            while(sib){ if(sib.tagName===e.tagName) idx++; sib = sib.previousElementSibling; }
+            return selector(p) + ' > ' + name + ':nth-of-type(' + idx + ')';
+          }
+          function path(e, acc){
+            if (!e || e === document.body || e === document.documentElement) { acc.unshift(e.tagName.toLowerCase()); return acc; }
+            acc.unshift(e.tagName.toLowerCase() + (e.id?('#'+e.id):''));
+            return path(e.parentElement, acc);
+          }
+          var r = el.getBoundingClientRect();
+          return {
+            found: true,
+            selector: selector(el),
+            tagName: el.tagName,
+            id: el.id || null,
+            className: el.getAttribute('class'),
+            rect: {x: r.left, y: r.top, width: r.width, height: r.height},
+            path: path(el, [])
+          };
+        } catch(ex){ return {found:false, reason:String(ex)}; }
+      })();`;
+
+      try {
+        const result = (await contents.executeJavaScript(script)) as CanvasSelectionPayload;
+        // Send to all BrowserWindows (renderer)
+        const wins = BrowserWindow.getAllWindows();
+        for (const w of wins) {
+          if (!w.isDestroyed()) {
+            w.webContents.send(IPC_CHANNELS.canvasSelection, result);
+          }
+        }
+      } catch {
+        const wins = BrowserWindow.getAllWindows();
+        for (const w of wins) {
+          if (!w.isDestroyed()) {
+            w.webContents.send(IPC_CHANNELS.canvasSelection, { found: false, reason: "error" });
+          }
+        }
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.canvasGetTree, async () => {
+      const targetView = view;
+      if (targetView === null || targetView.webContents.isDestroyed()) return { root: null };
+      if (!visible) return { root: null };
+      const contents = targetView.webContents;
+      const script = `(function(){
+        try {
+          function sel(x){
+            if(!x || x === document.documentElement) return x.tagName.toLowerCase();
+            var name = x.tagName.toLowerCase();
+            if(x.id) return name + '#' + x.id;
+            var p = x.parentElement;
+            if(!p) return name;
+            var idx=1; var sib=x.previousElementSibling;
+            while(sib){ if(sib.tagName===x.tagName) idx++; sib=sib.previousElementSibling; }
+            return sel(p)+' > '+name+':nth-of-type('+idx+')';
+          }
+          function build(e){
+            if(!e) return null;
+            var tag = e.tagName.toLowerCase();
+            if(tag === 'script' || tag === 'style' || tag === 'meta' || tag === 'link' || tag === 'head') return null;
+            var node = {
+              tagName: e.tagName,
+              id: e.id || null,
+              className: e.getAttribute('class'),
+              selector: sel(e),
+              children: []
+            };
+            var kids = e.children || [];
+            for(var i=0;i<kids.length;i++){
+              var c = build(kids[i]);
+              if(c) node.children.push(c);
+            }
+            return node;
+          }
+          var root = document.body || document.documentElement;
+          return { root: build(root) };
+        }catch(ex){ return { root: null }; }
+      })();`;
+      try {
+        return await contents.executeJavaScript(script);
+      } catch {
+        return { root: null };
+      }
+    });
+  } catch {
+    // ignore if already registered
   }
 
   return {

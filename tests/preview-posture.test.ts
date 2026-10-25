@@ -16,9 +16,14 @@ describe("previewWebPreferences", () => {
     expect(preferences.nodeIntegrationInWorker).toBe(false);
   });
 
-  it("gives the preview no bridge into the main process", () => {
-    // No `preload` key at all: the preview must not be able to reach IPC.
-    expect(previewWebPreferences()).not.toHaveProperty("preload");
+  it("gives the preview no Astra bridge into the main process", () => {
+    // Phase 2 uses a minimal preload only to report click coordinates for
+    // hit-testing (Option C). It must not expose the Astra API or Node.
+    const prefs = previewWebPreferences();
+    expect(prefs.preload).toBeDefined();
+    expect(prefs.sandbox).toBe(true);
+    expect(prefs.nodeIntegration).toBe(false);
+    expect(prefs.contextIsolation).toBe(true);
   });
 
   it("closes the remaining escape hatches", () => {

@@ -43,3 +43,11 @@ test-results
 vitest-final.txt
 vitest-out.txt
 vitest.log
+
+
+docs/
+vitest_*.txt
+vitest-out.txt
+vitest-final.txt
+AGENTS.md
+

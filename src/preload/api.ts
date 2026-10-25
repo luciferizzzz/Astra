@@ -1,5 +1,6 @@
 import type { AstraSettings } from "../shared/settings";
 import type {
+  CanvasSelectionPayload,
   CanvasSurfaceRequest,
   CanvasSurfaceResponse,
   MenuCommand,
@@ -78,4 +79,8 @@ export interface AstraApi {
    * `null` bounds or a `null` entry path to hide it.
    */
   setCanvasSurface(request: CanvasSurfaceRequest): Promise<CanvasSurfaceResponse>;
+  /** Subscribes to selection results from the canvas. */
+  onCanvasSelection(listener: (payload: CanvasSelectionPayload) => void): () => void;
+  /** Get DOM tree snapshot from canvas. */
+  getCanvasTree(): Promise<import("../shared/ipc").CanvasTreePayload>;
 }
