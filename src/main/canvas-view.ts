@@ -354,6 +354,65 @@ export function createCanvasView(): CanvasView {
         return { root: null };
       }
     });
+
+    // UI -> main: select element by selector for two-way sync (FR-C06)
+    ipcMain.on(IPC_CHANNELS.canvasSelectBySelector, async (_event, payload: { selector?: string; source?: string } | string) => {
+      const targetView = view;
+      if (targetView === null || targetView.webContents.isDestroyed()) return;
+      if (!visible) return;
+      const contents = targetView.webContents;
+      const selector = typeof payload === "string" ? payload : (payload?.selector || "");
+      const source = typeof payload === "object" && payload?.source ? payload.source : "tree";
+      if (!selector) {
+        const wins = BrowserWindow.getAllWindows();
+        for (const w of wins) {
+          if (!w.isDestroyed()) {
+            w.webContents.send(IPC_CHANNELS.canvasSelection, { found: false, reason: "empty-selector", source: source as any });
+          }
+        }
+        return;
+      }
+      const script = `(function(){
+        try {
+          var sel = ${JSON.stringify(selector)};
+          var el = document.querySelector(sel);
+          if (!el) return {found:false, reason:"not-found", selector: sel};
+          function buildPath(e, acc){
+            if (!e || e === document.body || e === document.documentElement) { acc.unshift(e.tagName.toLowerCase()); return acc; }
+            acc.unshift(e.tagName.toLowerCase() + (e.id?('#'+e.id):''));
+            return buildPath(e.parentElement, acc);
+          }
+          var r = el.getBoundingClientRect();
+          // Try to scroll into view for feedback
+          try { el.scrollIntoView({block:'nearest', inline:'nearest'}); } catch(e){}
+          return {
+            found: true,
+            selector: sel,
+            tagName: el.tagName,
+            id: el.id || null,
+            className: el.getAttribute('class'),
+            rect: {x: r.left, y: r.top, width: r.width, height: r.height},
+            path: buildPath(el, [])
+          };
+        } catch(ex){ return {found:false, reason:String(ex)}; }
+      })();`;
+      try {
+        const result = (await contents.executeJavaScript(script)) as CanvasSelectionPayload;
+        const wins = BrowserWindow.getAllWindows();
+        for (const w of wins) {
+          if (!w.isDestroyed()) {
+            w.webContents.send(IPC_CHANNELS.canvasSelection, { ...result, source: source as any });
+          }
+        }
+      } catch {
+        const wins = BrowserWindow.getAllWindows();
+        for (const w of wins) {
+          if (!w.isDestroyed()) {
+            w.webContents.send(IPC_CHANNELS.canvasSelection, { found: false, reason: "error", source: source as any });
+          }
+        }
+      }
+    });
   } catch {
     // ignore if already registered
   }

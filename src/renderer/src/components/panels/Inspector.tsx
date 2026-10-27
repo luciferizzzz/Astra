@@ -8,8 +8,15 @@ import { useCanvasStore } from "@/store/canvas-store";
 
 const TABS = ["Inspector", "Styles", "Layout", "Attributes"] as const;
 
+function isReadOnlyTag(tag?: string): boolean {
+  if (!tag) return false;
+  const t = tag.toLowerCase();
+  return t === "svg" || t === "canvas" || t === "iframe" || t === "script" || t === "style" || t === "link" || t === "meta" || t === "head";
+}
+
 export default function Inspector() {
   const selection = useCanvasStore((state) => state.selection);
+  const readOnly = isReadOnlyTag(selection?.tagName);
 
   return (
     <aside
@@ -64,7 +71,9 @@ export default function Inspector() {
                 </div>
               </div>
             ) : null}
-            <div className="mt-2 text-[10px] text-fg-faint">Read-only (origin)</div>
+            <div className="mt-2 text-[10px] text-fg-faint">
+              {readOnly ? "Read-only (unsupported element)" : "Read-only (origin)"}
+            </div>
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center">

@@ -83,4 +83,6 @@ export interface AstraApi {
   onCanvasSelection(listener: (payload: CanvasSelectionPayload) => void): () => void;
   /** Get DOM tree snapshot from canvas. */
   getCanvasTree(): Promise<import("../shared/ipc").CanvasTreePayload>;
+  /** Select element in canvas by CSS selector for two-way sync (FR-C06). */
+  selectCanvasElement(selector: string, source?: "canvas" | "tree" | "programmatic"): void;
 }

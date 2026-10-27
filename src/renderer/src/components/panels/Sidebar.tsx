@@ -143,20 +143,47 @@ export default function Sidebar() {
   );
 }
 
+import { useCanvasStore } from "@/store/canvas-store";
+
+function isReadOnlyTag(tag: string): boolean {
+  const t = tag.toLowerCase();
+  return t === "svg" || t === "canvas" || t === "iframe" || t === "script" || t === "style" || t === "link" || t === "meta" || t === "head";
+}
+
 function LayerTreeNode({ node }: { node: import("../../../../shared/ipc").CanvasTreeNode }) {
   const [open, setOpen] = useState(true);
+  const selectBySelector = useCanvasStore((s) => s.selectBySelector);
+  const selection = useCanvasStore((s) => s.selection);
   const hasChildren = node.children.length > 0;
-  const label = `${node.tagName.toLowerCase()}${node.id ? `#${node.id}` : ""}${node.className ? `.${node.className.trim().split(/\s+/).join(".")}` : ""}`;
+  const tagLower = node.tagName.toLowerCase();
+  const readOnly = isReadOnlyTag(tagLower);
+  const label = `${tagLower}${node.id ? `#${node.id}` : ""}${node.className ? `.${node.className.trim().split(/\s+/).filter(Boolean).join(".")}` : ""}`;
+  const isSelected = selection?.selector === node.selector;
   return (
     <div className="flex flex-col">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 rounded px-1 py-0.5 text-left text-fg-muted hover:bg-surface-2"
+        onClick={(e) => {
+          // Don't toggle collapse when clicking to select? toggle on click is fine, but also select
+          // If clicking caret area we could detect, but simple: select on click; user can still expand via double? 
+          // Keep existing toggle behavior but also trigger selection
+          if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) {
+            setOpen((v) => !v);
+            return;
+          }
+          // Select element in canvas (two-way sync)
+          if (node.selector) {
+            selectBySelector(node.selector);
+          }
+          setOpen((v) => !v);
+        }}
+        className={`flex items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-surface-2 ${isSelected ? "bg-surface-2 text-fg" : "text-fg-muted"}`}
         style={{ paddingLeft: "0.25rem" }}
+        title={node.selector}
       >
         {hasChildren ? <span className="text-[10px] text-fg-faint">{open ? "▾" : "▸"}</span> : <span className="w-2" />}
         <span className="truncate">{label}</span>
+        {readOnly ? <span className="ml-auto text-[9px] text-fg-faint">read-only</span> : null}
       </button>
       {hasChildren && open ? (
         <div className="ml-3 flex flex-col">

@@ -84,6 +84,13 @@ const api: AstraApi = {
     };
   },
   getCanvasTree: () => ipcRenderer.invoke(IPC_CHANNELS.canvasGetTree),
+  selectCanvasElement: (selector: string, source: "canvas" | "tree" | "programmatic" = "tree") => {
+    try {
+      ipcRenderer.send(IPC_CHANNELS.canvasSelectBySelector, { selector, source });
+    } catch {
+      /* ignore */
+    }
+  },
   onProjectFsEvent: (listener) => {
     const handler = (_event: unknown, payload: unknown): void => {
       if (isProjectFsEvent(payload)) listener(payload.changes);

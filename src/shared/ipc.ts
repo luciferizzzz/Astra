@@ -74,6 +74,8 @@ export const IPC_CHANNELS = {
   canvasGetTree: "astra:canvas:get-tree",
   /** Main → UI: DOM tree snapshot. */
   canvasTree: "astra:canvas:tree",
+  /** UI → main: select element in canvas by CSS selector (FR-C06 two-way sync). */
+  canvasSelectBySelector: "astra:canvas:select-by-selector",
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -258,6 +260,15 @@ export interface CanvasSelectionPayload {
   readonly rect?: { x: number; y: number; width: number; height: number };
   readonly path?: string[];
   readonly reason?: string;
+  /** Source that initiated the selection to prevent ping-pong loops. */
+  readonly source?: "canvas" | "tree" | "programmatic";
+}
+
+/** Payload for `astra:canvas:select-by-selector`. */
+export interface CanvasSelectBySelectorRequest {
+  readonly selector: string;
+  /** Source marker so the UI can suppress echo loops. */
+  readonly source?: "canvas" | "tree" | "programmatic";
 }
 
 /** Layer tree node snapshot from canvas. */
