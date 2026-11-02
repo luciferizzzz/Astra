@@ -117,6 +117,21 @@ export default function Canvas() {
         <span data-testid="canvas-viewport">{VIEWPORT_LABELS[viewport]}</span>
         <span aria-hidden="true">·</span>
         <span data-testid="canvas-mode">{mode}</span>
+        {selection?.found && (selection.tagName || selection.selector) ? (
+          <>
+            <span aria-hidden="true">·</span>
+            {/*
+              The selection label lives *here*, in chrome outside the measured
+              box, because the box itself is covered by the native view. The
+              outline that marks the element is painted inside the preview by
+              the main process (`canvas-view.ts`).
+            */}
+            <span data-testid="canvas-selected" className="text-fg-muted">
+              {selection.tagName ? selection.tagName.toLowerCase() : ""}
+              {selection.id ? `#${selection.id}` : ""}
+            </span>
+          </>
+        ) : null}
       </div>
 
       {/*
@@ -137,40 +152,6 @@ export default function Canvas() {
         className="relative min-h-0 flex-1 rounded border border-dashed border-border-subtle"
         style={width === null ? { width: "100%" } : { width, maxWidth: "100%" }}
       >
-        {selection?.found && selection.rect ? (
-          <div
-            data-testid="canvas-selection-outline"
-            style={{
-              position: "absolute",
-              left: selection.rect.x,
-              top: selection.rect.y,
-              width: selection.rect.width,
-              height: selection.rect.height,
-              border: "1px solid #4f9bff",
-              pointerEvents: "none",
-              boxSizing: "border-box",
-            }}
-          >
-            {selection.tagName ? (
-              <span
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  top: -18,
-                  background: "#4f9bff",
-                  color: "#fff",
-                  fontSize: "10px",
-                  padding: "0 4px",
-                  lineHeight: "16px",
-                  borderRadius: "2px",
-                }}
-              >
-                {selection.tagName.toLowerCase()}
-                {selection.id ? `#${selection.id}` : ""}
-              </span>
-            ) : null}
-          </div>
-        ) : null}
         <div className="absolute inset-0 flex items-center justify-center p-6">
           {root !== null && entryPoint !== null ? (
             // The site is painted over this box by the main process; the text is

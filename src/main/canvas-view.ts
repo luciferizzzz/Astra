@@ -120,6 +120,95 @@ function securityHeaders(): Record<string, string> {
 }
 
 /**
+ * The element the canvas injects into the project document to mark a selection.
+ *
+ * The outline has to live *inside* the preview renderer, not in the UI document:
+ * the view is composited above the window's web contents, so an absolutely
+ * positioned `<div>` in `Canvas.tsx` would always be hidden behind the site it
+ * is supposed to mark. Painting it here also means the coordinates come from
+ * the document that measured them — no DIP/CSS-pixel conversion, no lag while
+ * the UI re-renders.
+ *
+ * Nothing about this element touches the project's own files: it is created at
+ * runtime, has `pointer-events: none`, and disappears with the document.
+ */
+const OUTLINE_ELEMENT_ID = "__astra_selection_outline";
+
+/** The label a selection's outline carries, e.g. `section#hero`. */
+function outlineLabel(selection: CanvasSelectionPayload): string {
+  const tag = (selection.tagName ?? "").toLowerCase();
+  if (tag === "") return "";
+  return selection.id ? `${tag}#${selection.id}` : tag;
+}
+
+/** Script that replaces (or clears) the in-canvas selection outline. */
+function outlineScript(selection: CanvasSelectionPayload): string {
+  return `(function(){
+    var id = ${JSON.stringify(OUTLINE_ELEMENT_ID)};
+    var previous = document.getElementById(id);
+    if (previous && previous.parentNode) previous.parentNode.removeChild(previous);
+    var rect = ${JSON.stringify(selection.rect ?? null)};
+    var label = ${JSON.stringify(outlineLabel(selection))};
+    if (!rect || !document.documentElement) return false;
+
+    var box = document.createElement('div');
+    box.id = id;
+    box.setAttribute('data-astra-overlay', 'selection');
+    box.style.cssText = [
+      'position:absolute',
+      'pointer-events:none',
+      'z-index:2147483647',
+      'box-sizing:border-box',
+      'border:1px solid #4f9bff',
+      'background:rgba(79,155,255,0.10)'
+    ].join(';');
+    box.style.left = (rect.x + window.scrollX) + 'px';
+    box.style.top = (rect.y + window.scrollY) + 'px';
+    box.style.width = rect.width + 'px';
+    box.style.height = rect.height + 'px';
+
+    if (label) {
+      var tag = document.createElement('span');
+      tag.textContent = label;
+      tag.style.cssText = [
+        'position:absolute',
+        'left:-1px',
+        'top:-17px',
+        'padding:0 4px',
+        'line-height:16px',
+        'font:10px/16px system-ui,sans-serif',
+        'color:#fff',
+        'background:#4f9bff',
+        'border-radius:2px',
+        'white-space:nowrap'
+      ].join(';');
+      box.appendChild(tag);
+    }
+
+    document.documentElement.appendChild(box);
+    return true;
+  })()`;
+}
+
+/**
+ * Paints the selection outline inside the preview.
+ *
+ * Failure is swallowed on purpose: an outline is feedback, never a gate. If the
+ * document navigated away between hit-test and paint, the selection has already
+ * been reported to the UI and must not be turned into an error it never caused.
+ */
+async function paintOutline(
+  contents: WebContentsView["webContents"],
+  selection: CanvasSelectionPayload,
+): Promise<void> {
+  try {
+    await contents.executeJavaScript(outlineScript(selection));
+  } catch {
+    // cosmetic only
+  }
+}
+
+/**
  * Declares the preview scheme as privileged.
  *
  * Must be called before `app.whenReady()`. `standard` makes the scheme behave
@@ -292,6 +381,9 @@ export function createCanvasView(): CanvasView {
 
       try {
         const result = (await contents.executeJavaScript(script)) as CanvasSelectionPayload;
+        // Paint before announcing: the UI and the canvas then show the same
+        // element by the time the tree and inspector update.
+        if (result?.found) await paintOutline(contents, result);
         // Send to all BrowserWindows (renderer)
         const wins = BrowserWindow.getAllWindows();
         for (const w of wins) {
@@ -382,9 +474,10 @@ export function createCanvasView(): CanvasView {
             acc.unshift(e.tagName.toLowerCase() + (e.id?('#'+e.id):''));
             return buildPath(e.parentElement, acc);
           }
-          var r = el.getBoundingClientRect();
-          // Try to scroll into view for feedback
+          // Scroll first, measure second: a rectangle captured before
+          // scrollIntoView describes where the element *was*.
           try { el.scrollIntoView({block:'nearest', inline:'nearest'}); } catch(e){}
+          var r = el.getBoundingClientRect();
           return {
             found: true,
             selector: sel,
@@ -398,6 +491,7 @@ export function createCanvasView(): CanvasView {
       })();`;
       try {
         const result = (await contents.executeJavaScript(script)) as CanvasSelectionPayload;
+        if (result?.found) await paintOutline(contents, result);
         const wins = BrowserWindow.getAllWindows();
         for (const w of wins) {
           if (!w.isDestroyed()) {

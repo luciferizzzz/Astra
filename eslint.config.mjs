@@ -15,7 +15,17 @@ export default tseslint.config(
   {
     // Generated / packaged output. `out/` and `release/` are electron-vite and
     // electron-builder artifacts; `fixtures/` is HTML/CSS test data, not source.
-    ignores: ['out/**', 'release/**', 'fixtures/**', 'coverage/**', 'test-results/**', 'playwright-report/**'],
+    // `replace.js` is a local one-off scratch helper (git-ignored, never shipped);
+    // linting it only ever reports that a bare Node script is not ES modules.
+    ignores: [
+      'out/**',
+      'release/**',
+      'fixtures/**',
+      'coverage/**',
+      'test-results/**',
+      'playwright-report/**',
+      'replace.js',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

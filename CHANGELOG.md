@@ -5,12 +5,59 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > **No release yet.** Everything below is unreleased development work:
-> the foundation scaffold, Phase 0 (sync engine + hardened preview), and
-> Phase 1 (Electron shell + project filesystem, closed 2026-10-19 with a
-> verified NSIS installer). The project vault carries the full narrative
-> changelog; this file is its repo-side mirror.
+> the foundation scaffold, Phase 0 (sync engine + hardened preview), Phase 1
+> (Electron shell + project filesystem, closed 2026-10-19 with a verified NSIS
+> installer) and Phase 2 (sandboxed canvas + selection + layer tree + inspector
+> + two-way sync, closed 2026-10-26). The project vault carries the full
+> narrative changelog; this file is its repo-side mirror.
 
 ## [Unreleased]
+
+### Freeze & final check for the internal read-only build (2026-11-02)
+
+#### Changed
+
+- **`.gitignore` rewritten as UTF-8** — a block appended by PowerShell had made the file
+  unreadable as text (NUL bytes) and duplicated `docs/`; the local one-off scratch helpers
+  (`append_note.txt`, `fix_ai.py`, `fix_canvas.md.py`, `replace.js`) are now ignored explicitly
+  instead of lingering as untracked noise.
+- **`npm run lint` is finally 0 problems.** The 4 remaining errors were all from `replace.js`,
+  a local one-off script outside the project; it is excluded from the flat config with a comment
+  that says why, rather than silenced with a rule override.
+- **README tells the truth about Phase 2** — status, gate numbers, project structure, security
+  posture (the canvas is a separate `WebContentsView` with its own CSP, not an iframe) and the
+  debt list (no editing yet, no auto-reload, partial TEST-016 parity, monitored Node advisories).
+
+#### Notes
+
+- No product behaviour changed in this slice: it is a freeze, so the artifact shipped to testers
+  is built from a state whose gates were all run against it.
+
+### Phase 2 — selection, layer tree, inspector, two-way sync (2026-10-26)
+
+#### Added
+
+- **Click-to-select in the canvas** — `astra:canvas:click` carries the click coordinates from the
+  preview view, and the main process hit-tests the document, so the preview itself never needs a
+  bridge. The selected node is broadcast as `astra:canvas:selection` with its selector, rect and
+  computed style. (FR-C02, FR-C03)
+- **Outline overlay** — the selected element is highlighted in the canvas without mutating the
+  page's own styles.
+- **Layer tree** — `astra:canvas:get-tree` returns the document outline; the sidebar renders it
+  with lazy expansion, and unsupported elements (`<svg>`, `<canvas>`, `<iframe>`, injected nodes)
+  carry a read-only badge. (FR-C04)
+- **Inspector** — read-only panel showing tag, id/class, box metrics, typography and text content
+  for the current selection, with the same read-only badge. (FR-C05)
+- **Two-way sync** — clicking a tree node calls `astra:canvas:select-by-selector`; the main process
+  resolves the selector with `document.querySelector`, scrolls it into view and broadcasts the
+  selection with `source: 'tree'`, so both directions update outline, tree and inspector. (FR-C06)
+
+#### Security
+
+- The preview still holds no privilege: selection flows UI → main → preview evaluation, and the
+  preview never receives a channel it can call back on.
+- **`npm audit` back to 0** — `fast-uri` / `undici` (transitive) were patched.
+
 
 ### Phase 2 — sandboxed canvas renders the real site (2026-10-20)
 

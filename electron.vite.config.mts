@@ -17,6 +17,20 @@ export default defineConfig({
     resolve: { alias: { "@core": coreSrc } },
     build: {
       sourcemap: true,
+      // Two preloads, two entries. `index` is the UI bridge; `preview-preload`
+      // is the deliberately tiny one that only reports click coordinates from
+      // the sandboxed canvas. Listing it here is what actually emits
+      // `out/preload/preview-preload.js` — a path `preview-posture.ts` points
+      // at, so it must exist in the build or the canvas silently runs without
+      // any click reporting at all.
+      rollupOptions: {
+        input: {
+          index: fileURLToPath(new URL("./src/preload/index.ts", import.meta.url)),
+          "preview-preload": fileURLToPath(
+            new URL("./src/preload/preview-preload.ts", import.meta.url),
+          ),
+        },
+      },
       // A sandboxed preload is loaded by Electron as CommonJS and cannot reach
       // into node_modules, so its bundle has to be self-contained. It currently
       // imports nothing from npm — only `electron` and the in-repo contract.
