@@ -12,14 +12,15 @@ Windows 10/11 · Electron 44 · React 19 + TypeScript + Vite
 
 ## Status
 
-**Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ (S1–S5, 2026-10-26) — desktop foundation, project
-pipeline and a sandboxed visual canvas.**
+**Phase 0 ✅ · Phase 1 ✅ · Phase 2 ✅ (S1–S5, 2026-10-26) · Phase 2.5 🟡 (sidebar collapse,
+2026-11-09) — desktop foundation, project pipeline and a sandboxed visual canvas.**
 
 This repository contains the byte-preserving synchronisation engine (`src/core/`), the hardened
 Electron shell, the project-loading pipeline (scoped filesystem + watcher + explorer + entry
 point detection), a self-contained NSIS installer, and a **read-only visual canvas**: the real
 project is rendered in an isolated `WebContentsView`, and clicking it selects an element, draws
-an outline and drives the layer tree and inspector (both directions).
+an outline and drives the layer tree and inspector (both directions). The navigation panel can be
+collapsed to a 48 px icon rail and reopened without losing the active section.
 
 Phase 3 — the editing loop (edit → source mapping → minimal patch → atomic save → undo/redo) —
 **is not implemented yet**. Astra opens, renders and navigates a project; it never writes to one.
@@ -30,9 +31,9 @@ Everything below has been verified end-to-end on Windows:
 | --- | --- |
 | `npm run lint` | 0 problems |
 | `npm run typecheck` | 0 errors |
-| `npm run test` | 314 passing, 25 files |
+| `npm run test` | 317 passing, 25 files |
 | `npm run build` | 3 processes emitted |
-| `npm run test:e2e` | 28 passing against the real Electron shell |
+| `npm run test:e2e` | 30 passing against the real Electron shell |
 | `npm run dev` | renders cleanly (required for every slice to be called done) |
 | `npm run make` | `release/Astra Setup 0.1.0.exe`, fully self-contained |
 | installer cycle | silent install → boots with **0 outbound TCP connections** → silent uninstall, all residue removed |
