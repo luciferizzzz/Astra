@@ -16,6 +16,11 @@ import { useCanvasTreeStore } from "@/store/canvas-tree-store";
  * Settings is a summary, not the editor: the real surface is a dialog that the
  * menu, the toolbar and the shortcut all open. Repeating the form here would
  * give the app two settings UIs to keep in step.
+ *
+ * The panel can also be collapsed to an icon rail. Collapsing and hiding are
+ * different gestures on purpose: the menu's "Toggle Sidebar" removes the region
+ * entirely (the canvas takes the space), while the chevron narrows it to icons
+ * and keeps one-click access to every section.
  */
 
 const SECTIONS = ["Files", "Components", "Design", "Assets", "Settings"] as const;
@@ -38,6 +43,9 @@ export default function Sidebar() {
   const [active, setActive] = useState<Section>("Files");
   const settings = useAppStore((state) => state.settings);
   const openSettings = useAppStore((state) => state.openSettings);
+  const collapsed = useAppStore((state) => state.sidebarCollapsed);
+  const toggleCollapsed = useAppStore((state) => state.toggleSidebarCollapsed);
+  const setCollapsed = useAppStore((state) => state.setSidebarCollapsed);
   const root = useProjectStore((state) => state.root);
   const openProject = useProjectStore((state) => state.openProject);
   const tree = useCanvasTreeStore((state) => state.tree);
@@ -49,12 +57,68 @@ export default function Sidebar() {
     }
   }, [active, refreshTree]);
 
+  if (collapsed) {
+    return (
+      <aside
+        aria-label="Sidebar"
+        className="flex w-12 shrink-0 flex-col items-center border-r border-border-subtle bg-surface-1 py-1"
+      >
+        <button
+          type="button"
+          aria-label="Expand sidebar"
+          aria-expanded={false}
+          title="Expand sidebar"
+          onClick={() => setCollapsed(false)}
+          className="rounded p-1 text-fg-faint hover:bg-surface-2 hover:text-fg"
+        >
+          <Chevron direction="right" />
+        </button>
+
+        <div className="my-1 h-px w-6 bg-border-subtle" />
+
+        <nav aria-label="Sidebar sections" className="flex flex-col items-center gap-1">
+          {SECTIONS.map((section) => (
+            <button
+              key={section}
+              type="button"
+              aria-label={section}
+              title={section}
+              onClick={() => {
+                setActive(section);
+                setCollapsed(false);
+              }}
+              className={`rounded p-1.5 transition-colors ${
+                section === active
+                  ? "bg-surface-2 text-fg"
+                  : "text-fg-subtle hover:bg-surface-2 hover:text-fg"
+              }`}
+            >
+              <SectionIcon section={section} />
+            </button>
+          ))}
+        </nav>
+      </aside>
+    );
+  }
 
   return (
     <aside
       aria-label="Sidebar"
       className="flex w-60 shrink-0 flex-col border-r border-border-subtle bg-surface-1"
     >
+      <div className="flex items-center justify-end px-2 pt-1">
+        <button
+          type="button"
+          aria-label="Collapse sidebar"
+          aria-expanded={true}
+          title="Collapse sidebar"
+          onClick={toggleCollapsed}
+          className="rounded p-1 text-fg-faint hover:bg-surface-2 hover:text-fg-muted"
+        >
+          <Chevron direction="left" />
+        </button>
+      </div>
+
       <nav role="tablist" aria-label="Sidebar sections" className="flex flex-wrap gap-1 border-b border-border-subtle p-2">
         {SECTIONS.map((section) => {
           const selected = section === active;
@@ -140,6 +204,78 @@ export default function Sidebar() {
         )}
       </div>
     </aside>
+  );
+}
+
+/**
+ * The collapse control. A chevron is enough here — the accessible name lives on
+ * the button (`Collapse sidebar` / `Expand sidebar`), not on the glyph.
+ */
+function Chevron({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={direction === "left" ? "M10 3.5 5.5 8 10 12.5" : "M6 3.5 10.5 8 6 12.5"} />
+    </svg>
+  );
+}
+
+/**
+ * Rail icons for the collapsed sidebar. Inline SVG keeps them dependency-free;
+ * each button carries the section name, so the glyph itself is decorative.
+ */
+function SectionIcon({ section }: { section: Section }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {section === "Files" ? (
+        <>
+          <path d="M4 2.5h5l3 3v8H4z" />
+          <path d="M9 2.5v3h3" />
+        </>
+      ) : section === "Components" ? (
+        <>
+          <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="0.5" />
+          <rect x="9" y="9" width="4.5" height="4.5" rx="0.5" />
+          <path d="M7 4.75h4.5M4.75 7v4.5" />
+        </>
+      ) : section === "Design" ? (
+        <>
+          <circle cx="8" cy="8" r="5.5" />
+          <circle cx="6" cy="6.5" r="0.6" fill="currentColor" />
+          <circle cx="9.5" cy="6" r="0.6" fill="currentColor" />
+          <path d="M5 9.5c1 1.5 4 1.5 5.5 0" />
+        </>
+      ) : section === "Assets" ? (
+        <>
+          <rect x="2.5" y="3" width="11" height="10" rx="0.5" />
+          <path d="m3 11 3-3 2.5 2.5 2-2 2.5 2.5" />
+          <circle cx="10" cy="5.5" r="0.8" />
+        </>
+      ) : (
+        <>
+          <path d="M3 5h10M3 11h10" />
+          <circle cx="6" cy="5" r="1.5" />
+          <circle cx="10" cy="11" r="1.5" />
+        </>
+      )}
+    </svg>
   );
 }
 

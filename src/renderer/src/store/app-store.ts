@@ -31,6 +31,12 @@ export interface AppState {
   readonly settings: AstraSettings;
   readonly settingsOpen: boolean;
   readonly panels: Record<PanelId, boolean>;
+  /**
+   * Whether the sidebar is showing only its icon rail. Independent of
+   * `panels.sidebar`: collapsing keeps the rail on screen, while the panel
+   * toggle hides the region entirely.
+   */
+  readonly sidebarCollapsed: boolean;
   readonly viewport: ViewportPreset;
   readonly mode: EditorMode;
 
@@ -45,6 +51,8 @@ export interface AppState {
 
   setViewport: (viewport: ViewportPreset) => void;
   togglePanel: (panel: PanelId) => void;
+  toggleSidebarCollapsed: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
   togglePreview: () => void;
 
   /** Applies a command forwarded from the application menu. */
@@ -70,6 +78,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   settingsOpen: false,
   panels: { sidebar: true, inspector: true, editor: true },
+  sidebarCollapsed: false,
   viewport: "desktop",
   mode: "edit",
 
@@ -118,6 +127,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setViewport: (viewport) => set({ viewport }),
   togglePanel: (panel) => set((state) => ({ panels: { ...state.panels, [panel]: !state.panels[panel] } })),
+  toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
   togglePreview: () => set((state) => ({ mode: state.mode === "edit" ? "preview" : "edit" })),
 
   runCommand: (command) => {

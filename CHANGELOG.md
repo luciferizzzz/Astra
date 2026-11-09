@@ -13,6 +13,24 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Collapsible sidebar (2026-11-09)
+
+#### Added
+
+- **The left sidebar can collapse to an icon rail.** A chevron narrows the panel to 48 px of
+  section icons (Files, Components, Design, Assets, Settings); choosing an icon expands the panel
+  with that section active. The control's accessible name switches between "Collapse sidebar" and
+  "Expand sidebar" and reports `aria-expanded`, so the state is available to assistive tech.
+- **Collapsing is separate from hiding.** View → Toggle Sidebar still removes the region entirely
+  (the canvas takes the space), while the chevron only narrows it. The two live in different store
+  fields (`sidebarCollapsed` and `panels.sidebar`) so neither can silently undo the other.
+
+#### Notes
+
+- Renderer-only shell state: no IPC channel, no settings entry, and nothing persists across
+  restarts. The canvas re-measures through its existing `ResizeObserver`, so preview bounds follow
+  the new width without extra wiring.
+
 ### Freeze & final check for the internal read-only build (2026-11-02)
 
 #### Changed

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "@/App";
 import { useAppStore } from "@/store/app-store";
@@ -20,6 +20,7 @@ beforeEach(() => {
     settings: DEFAULT_SETTINGS,
     settingsOpen: false,
     panels: { sidebar: true, inspector: true, editor: true },
+    sidebarCollapsed: false,
     viewport: "desktop",
     mode: "edit",
   });
@@ -175,6 +176,47 @@ describe("App shell — entry point", () => {
     fireEvent.click(screen.getByRole("button", { name: /open a project folder/i }));
 
     expect(await screen.findByTestId("no-entry-point")).toHaveTextContent("No entry page");
+  });
+});
+
+describe("App shell — sidebar collapse", () => {
+  it("collapses to an icon rail and expands again", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByRole("tab", { name: "Files" })).toBeNull();
+    expect(screen.getByRole("navigation", { name: "Sidebar sections" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+
+    expect(screen.getByRole("tab", { name: "Files" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("expands and activates the section picked from the rail", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    expect(screen.queryByRole("button", { name: "Expand sidebar" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Settings" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Theme")).toBeInTheDocument();
+  });
+
+  it("keeps collapsing separate from the menu that hides the sidebar", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeInTheDocument();
+
+    act(() => useAppStore.getState().togglePanel("sidebar"));
+    expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
   });
 });
 
