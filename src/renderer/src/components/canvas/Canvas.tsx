@@ -32,6 +32,7 @@ const VIEWPORT_LABELS = { desktop: "Desktop", tablet: "Tablet", mobile: "Mobile"
 export default function Canvas() {
   const viewport = useAppStore((state) => state.viewport);
   const mode = useAppStore((state) => state.mode);
+  const settingsOpen = useAppStore((state) => state.settingsOpen);
   const width = VIEWPORT_WIDTHS[viewport];
 
   const entryPoint = useProjectStore((state) => state.entryPoint);
@@ -57,13 +58,22 @@ export default function Canvas() {
    * `getBoundingClientRect` returns viewport coordinates, which is exactly the
    * space a child view is placed in — the UI document fills the window's client
    * area and does not scroll as a whole, so no offset correction is needed.
+   *
+   * A modal (today: Settings) suspends the surface instead of being drawn over
+   * it. The view is a native layer above the entire UI document, so a dialog in
+   * the DOM — `fixed inset-0 z-50` or otherwise — is painted *behind* the site
+   * and cannot be clicked. No z-index crosses that boundary; the only honest
+   * fix is to hide the view for as long as the modal is up. Hiding is not
+   * destroying: the loaded document survives, so closing the dialog shows the
+   * same page without a reload.
    */
   const report = useCallback(() => {
     const api = bridge();
     if (!api?.setCanvasSurface) return;
 
     const element = surfaceRef.current;
-    const visible = root !== null && entryPoint !== null && element !== null;
+    const visible =
+      root !== null && entryPoint !== null && element !== null && !settingsOpen;
     if (!visible) {
       void api.setCanvasSurface({ bounds: null, entryPath: null, revision }).catch(() => undefined);
       return;
@@ -77,7 +87,7 @@ export default function Canvas() {
         revision,
       })
       .catch(() => undefined);
-  }, [entryPoint, revision, root]);
+  }, [entryPoint, revision, root, settingsOpen]);
 
   // Placement follows the element, not a render: a panel toggle or a window
   // resize changes the rectangle without changing anything React subscribes to.

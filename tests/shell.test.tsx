@@ -254,4 +254,41 @@ describe("App shell — settings dialog", () => {
     fireEvent.mouseDown(dialog.parentElement as HTMLElement);
     expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
   });
+
+  it("suspends the canvas surface while the dialog is open", async () => {
+    // The preview is a native layer above the UI document, so a modal can only
+    // be seen if the surface is taken down for its lifetime. The store is what
+    // decides that; the main process just obeys the null it is handed.
+    const setCanvasSurface = vi.fn().mockResolvedValue({ shown: true, relativePath: "index.html" });
+    Reflect.set(window, "astra", {
+      // The status bar probes the bridge on mount; a stub missing `ping` would
+      // fail for a reason unrelated to this test.
+      ping: async () => ({ pong: true, nonce: "renderer-ready" }),
+      getAppVersion: async () => "0.1.0",
+      setCanvasSurface,
+    });
+    useProjectStore.setState({ root: "C:\\Projects\\site", entryPoint: "index.html" });
+
+    render(<App />);
+
+    await vi.waitFor(() => {
+      expect(setCanvasSurface).toHaveBeenCalled();
+    });
+    const shown = setCanvasSurface.mock.calls.at(-1)?.[0];
+    expect(shown.bounds).not.toBeNull();
+    expect(shown.entryPath).toBe("index.html");
+
+    fireEvent.click(screen.getByRole("button", { name: /open application settings/i }));
+    await vi.waitFor(() => {
+      expect(setCanvasSurface.mock.calls.at(-1)?.[0]).toMatchObject({
+        bounds: null,
+        entryPath: null,
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /close settings/i }));
+    await vi.waitFor(() => {
+      expect(setCanvasSurface.mock.calls.at(-1)?.[0].bounds).not.toBeNull();
+    });
+  });
 });
