@@ -13,6 +13,27 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Settings dialog no longer hidden behind the canvas (2026-11-15)
+
+#### Fixed
+
+- **The Settings dialog can be used while a project is open.** The canvas is a `WebContentsView`
+  composited above the whole UI document, so the dialog (`fixed inset-0 z-50`) was painted behind the
+  site and its buttons were unclickable. No `z-index` crosses that boundary. The renderer now reports
+  `astra:canvas:surface` with `bounds: null` while `settingsOpen` is true, which hides the view for
+  the lifetime of the modal; closing it reports the same rectangle again.
+- **Hiding is not reloading.** The view is hidden, not destroyed, so its loaded document survives —
+  closing the dialog returns to the same page, scroll position and selection intact.
+
+#### Notes
+
+- Renderer-only change (`Canvas.tsx` + one dependency): no new IPC channel, no payload flag, no
+  change to `SettingsDialog.tsx`. `bounds: null` already meant "hide" in the main process.
+- Covered by a unit test (`tests/shell.test.tsx`) and a new runtime spec
+  (`e2e/settings-surface.spec.ts`) that reads the live view state through the main-process seam. The
+  spec was also run against the unfixed code and fails at the "surface is hidden" assertion.
+- Not in the packaged build: `release/Astra Setup 0.1.0.exe` is still built from `b98990d`.
+
 ### Collapsible sidebar (2026-11-09)
 
 #### Added

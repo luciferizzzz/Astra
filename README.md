@@ -161,7 +161,9 @@ The hardening in `src/main/index.ts` is intentional, not decorative (PRD §14.4,
 - The canvas is a separate `WebContentsView` on the `astra-preview` partition, with its own
   `astra-preview://` protocol handler and its **own** CSP — `frame-src 'none'` on the UI
   renderer is never loosened, and the preview holds no Node, bridge, filesystem or network
-  privilege
+  privilege. Because the view is a native layer above the DOM, any floating UI that overlaps its
+  rectangle must suspend it first (`astra:canvas:surface` with `bounds: null`); the Settings dialog
+  does this, and `e2e/settings-surface.spec.ts` proves the hide/restore cycle.
 
 The E2E suite asserts these rather than trusting them: it checks that `require`, `module`,
 `process` and `ipcRenderer` are all `undefined` inside the renderer, that a validated IPC
