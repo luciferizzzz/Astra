@@ -77,8 +77,8 @@ test("reaches the preload allowlist across the sandbox boundary", async () => {
 
 test("reports the application version from the main process", async () => {
   const version = await app.evaluate(({ app: electronApp }) => electronApp.getVersion());
-  expect(version).toBe("0.1.0");
+  expect(version).toBe("0.1.1");
 
   const page = await app.firstWindow();
-  await expect(page.getByTestId("app-version")).toHaveText("0.1.0");
+  await expect(page.getByTestId("app-version")).toHaveText("0.1.1");
 });

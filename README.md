@@ -31,11 +31,11 @@ Everything below has been verified end-to-end on Windows:
 | --- | --- |
 | `npm run lint` | 0 problems |
 | `npm run typecheck` | 0 errors |
-| `npm run test` | 317 passing, 25 files |
+| `npm run test` | 318 passing, 25 files |
 | `npm run build` | 3 processes emitted |
-| `npm run test:e2e` | 30 passing against the real Electron shell |
+| `npm run test:e2e` | 31 passing against the real Electron shell |
 | `npm run dev` | renders cleanly (required for every slice to be called done) |
-| `npm run make` | `release/Astra Setup 0.1.0.exe`, fully self-contained |
+| `npm run make` | `release/Astra Setup 0.1.1.exe`, fully self-contained |
 | installer cycle | silent install → boots with **0 outbound TCP connections** → silent uninstall, all residue removed |
 
 
