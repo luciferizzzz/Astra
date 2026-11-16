@@ -58,6 +58,9 @@ jobs:
         run: npm run test
 
       # `electron-builder --win` emits `release/Astra Setup <version>.exe`.
+      # Publishing is disabled inside `npm run make --publish never`: without it,
+      # electron-builder 26 sees the tag and tries to publish on its own, then dies
+      # on a missing GH_TOKEN before this workflow gets to `gh release create`.
       - name: Build NSIS installer
         run: npm run make
 
