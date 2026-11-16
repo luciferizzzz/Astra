@@ -139,7 +139,11 @@ describe("createProjectWatcher — live, polling mode", () => {
   });
 
   it("reports a file changed outside Astra", async () => {
-    await writeFile(join(root, "index.html"), "<p>two</p>\n");
+    // Deliberately a different length. The baseline write in beforeEach and this
+    // one can land in the same millisecond on a fast runner, and a same-size edit
+    // is then invisible: the watcher diffs size and mtime only, as its header
+    // says, and the byte-level verdict belongs to the sync layer.
+    await writeFile(join(root, "index.html"), "<p>two, edited outside Astra</p>\n");
     await waitFor(
       () => changes.some((change) => change.type === "changed" && change.relativePath === "index.html"),
       "changed event for index.html",
