@@ -86,6 +86,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $assets = (Get-ChildItem release -File -Filter '*.exe').FullName
+          # `@(...)` matters: a single .exe would otherwise be one string, and the
+          # `+=` below would concatenate paths into "…0.1.1.exe…SHA256SUMS.txt".
+          $assets = @(Get-ChildItem release -File -Filter '*.exe' | ForEach-Object FullName)
           $assets += (Get-Item 'release/SHA256SUMS.txt').FullName
           gh release create $env:GITHUB_REF_NAME $assets --draft --generate-notes
