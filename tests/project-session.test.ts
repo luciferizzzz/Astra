@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -34,8 +34,11 @@ let session: ProjectSession;
 let changes: ProjectFsChange[];
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "astra-session-"));
-  otherRoot = await mkdtemp(join(tmpdir(), "astra-session2-"));
+  // Canonicalise up front: `os.tmpdir()` returns the 8.3 short path on some
+  // Windows machines (CI runners included) while the session resolves the long
+  // name through `realpath`, so comparing the two would compare two spellings.
+  root = await realpath(await mkdtemp(join(tmpdir(), "astra-session-")));
+  otherRoot = await realpath(await mkdtemp(join(tmpdir(), "astra-session2-")));
   await writeFile(join(root, "index.html"), "<p>one</p>\n");
   await writeFile(join(otherRoot, "other.html"), "<p>other</p>\n");
 
