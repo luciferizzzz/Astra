@@ -218,21 +218,33 @@ test("enforces the preview policy against remote origins", async () => {
 });
 
 test("applies the project's linked stylesheet", async () => {
-  const styles = await canvasEvaluate<Record<string, { color: string; fontSize: string; display: string } | null>>(
-    STYLE_PROBE,
-  );
+  const styles = await canvasEvaluate<
+    Record<
+      string,
+      { color: string; fontFamily: string; fontSize: string; display: string; flexDirection: string } | null
+    >
+  >(STYLE_PROBE);
 
   // Values straight out of fixtures/parity/styles/site.css.
   expect(styles["title"]?.color).toBe("rgb(12, 34, 56)");
-  expect(styles["title"]?.fontSize).toBe("28px");
+  expect(styles["title"]?.fontFamily).toContain("Georgia");
   expect(styles["lead"]).not.toBeNull();
   // The paragraph is italic only through the `.prose` rule.
   expect(await canvasEvaluate<string>(`getComputedStyle(document.getElementById("lead")).fontStyle`)).toBe(
     "italic",
   );
-  // The list is a flex row before the media query and a column under it; the
-  // desktop preset is wide, so the row wins.
   expect(styles["list"]?.display).toBe("flex");
+
+  // The fixture's only media query is `max-width: 800px`, and the desktop preset
+  // is fluid (FR-H01), so the canvas is as wide as the window allows — which is
+  // not the same on a developer's monitor and on a CI runner. Assert the rule as
+  // the function of viewport width that it is, rather than assuming a wide
+  // window: both branches below are exact, and a stylesheet that never loaded
+  // fails either way.
+  const viewportWidth = await canvasEvaluate<number>("window.innerWidth");
+  const narrow = viewportWidth <= 800;
+  expect(styles["title"]?.fontSize).toBe(narrow ? "20px" : "28px");
+  expect(styles["list"]?.flexDirection).toBe(narrow ? "column" : "row");
 });
 
 test("runs the project's linked JavaScript", async () => {

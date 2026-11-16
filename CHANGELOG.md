@@ -4,14 +4,38 @@ All notable changes to Astra are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **No release yet.** Everything below is unreleased development work:
-> the foundation scaffold, Phase 0 (sync engine + hardened preview), Phase 1
-> (Electron shell + project filesystem, closed 2026-10-19 with a verified NSIS
-> installer) and Phase 2 (sandboxed canvas + selection + layer tree + inspector
-> + two-way sync, closed 2026-10-26). The project vault carries the full
-> narrative changelog; this file is its repo-side mirror.
+> **No published release yet.** `0.1.0` was an internal build (2 Nov) with no tag.
+> `0.1.1` is the first tagged, versioned build: the Release workflow builds it on
+> every `v*` tag and attaches it to a **draft** GitHub release, which a human
+> still has to publish. The project vault carries the full narrative changelog;
+> this file is its repo-side mirror.
 
 ## [Unreleased]
+
+_Nothing yet._
+
+## [0.1.1] - 2026-11-17
+
+First versioned build. Because `0.1.0` was only ever an internal build, everything
+recorded below is what the 0.1.1 installer contains.
+
+#### Distribution
+
+- **Version bumped `0.1.0` → `0.1.1`** (`package.json`, `package-lock.json`, the version
+  assertion in `e2e/smoke.spec.ts`) so a build carrying the Settings fix can be told apart from the
+  2 Nov installer without inspecting file dates.
+- **Installer: `Astra Setup 0.1.1.exe`** — 112,210,485 bytes, SHA256
+  `929C1541C6697E4250853B52F2366EC20CF62B3DE606593D9BCD701CB4CB0DDE`, built by
+  `.github/workflows/release.yml` on tag `v0.1.1` (`5f5f539`) and attached to the **draft** release
+  `v0.1.1` as `Astra.Setup.0.1.1.exe` with `SHA256SUMS.txt`.
+- **The payload was inspected, not launched.** Extracting the installer with 7-Zip shows
+  `Astra.exe` FileVersion `0.1.1` and `resources/app.asar` (2,485,831 bytes) containing
+  `!settingsOpen`; the string `0.1.0` is absent. Nobody has installed or run this build yet — Smart
+  App Control on the owner's machine blocks unsigned executables, which is also why the installer was
+  built on CI instead of locally.
+- **`npm run make` now ends with `--publish never`.** On a tagged commit electron-builder 26
+  auto-publishes, and without `GH_TOKEN` it aborted after building the installer and blockmap; the
+  workflow publishes with `gh release create` itself, and v27 makes this the default anyway.
 
 ### Settings dialog no longer hidden behind the canvas (2026-11-15)
 
@@ -32,7 +56,7 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Covered by a unit test (`tests/shell.test.tsx`) and a new runtime spec
   (`e2e/settings-surface.spec.ts`) that reads the live view state through the main-process seam. The
   spec was also run against the unfixed code and fails at the "surface is hidden" assertion.
-- Not in the packaged build: `release/Astra Setup 0.1.0.exe` is still built from `b98990d`.
+- Ships in the 0.1.1 installer above; the 0.1.0 installer (`b98990d`) still does not contain it.
 
 ### Collapsible sidebar (2026-11-09)
 
