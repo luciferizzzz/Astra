@@ -36,6 +36,12 @@ recorded below is what the 0.1.1 installer contains.
 - **`npm run make` now ends with `--publish never`.** On a tagged commit electron-builder 26
   auto-publishes, and without `GH_TOKEN` it aborted after building the installer and blockmap; the
   workflow publishes with `gh release create` itself, and v27 makes this the default anyway.
+- **Three runner-dependent tests fixed, so CI is green on `32e5501`.** The tag commit `5f5f539`
+  itself never had a green run (the watcher unit test failed); every change afterwards touched tests
+  and this file only, so `src/` is identical to the commit whose CI is green. `project-session`
+  compares real paths, `project-watcher` edits a different-sized file, and the canvas stylesheet test
+  asserts the fixture's `@media (max-width: 800px)` branch from the canvas's own `innerWidth`
+  instead of assuming a wide window.
 
 ### Settings dialog no longer hidden behind the canvas (2026-11-15)
 
