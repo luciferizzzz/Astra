@@ -25,7 +25,7 @@ collapsed to a 48 px icon rail and reopened without losing the active section.
 Phase 3 — the editing loop (edit → source mapping → minimal patch → atomic save → undo/redo) —
 **is not implemented yet**. Astra opens, renders and navigates a project; it never writes to one.
 
-Everything below has been verified end-to-end on Windows:
+The gates below were run on Windows at commit `0b7990a`/`bcd0a1b` (0.1.1 tree):
 
 | Gate | Result |
 | --- | --- |
@@ -35,8 +35,14 @@ Everything below has been verified end-to-end on Windows:
 | `npm run build` | 3 processes emitted |
 | `npm run test:e2e` | 31 passing against the real Electron shell |
 | `npm run dev` | renders cleanly (required for every slice to be called done) |
-| `npm run make` | `release/Astra Setup 0.1.1.exe`, fully self-contained |
-| installer cycle | silent install → boots with **0 outbound TCP connections** → silent uninstall, all residue removed |
+| `npm run make` | **fails on the owner's machine** — `⨯ spawn UNKNOWN`; Smart App Control blocks the unsigned installer stub electron-builder must run |
+| installer | `Astra Setup 0.1.1.exe` built by GitHub Actions (`.github/workflows/release.yml`, tag `v0.1.1`) and attached to a **draft** release with `SHA256SUMS.txt` |
+
+**The 0.1.1 installer has not been installed or launched.** Its contents were inspected
+(extracted with 7-Zip: `Astra.exe` FileVersion `0.1.1`, `resources/app.asar` containing
+`!settingsOpen`) but no install cycle was run, because Smart App Control on the owner's machine
+refuses unsigned executables. The last verified install cycle — silent install → boots with **0
+outbound TCP connections** → silent uninstall, residue removed — was build `0.1.0` (2026-11-02).
 
 
 ---
