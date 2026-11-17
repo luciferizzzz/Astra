@@ -30,12 +30,20 @@ recorded below is what the 0.1.1 installer contains.
   `.github/workflows/release.yml` on tag `v0.1.1` (`5f5f539`). The release was created as a draft,
   briefly published (2026-11-17 00:09–00:28Z) and then **deleted** because the build is internal
   test only; the tag remains, the artifact ships as a zip with `SHA256SUMS.txt`.
+- **The payload carries two changes, not just the Settings fix.** Between `b98990d` and `5f5f539`
+  `src/` changed in three files (`git diff --stat`: +159/−2) — the collapsible sidebar icon rail
+  (`e1fcb1d`, 9 Nov, `Sidebar.tsx` +136) and the Settings surface suspend (`0b7990a`, `Canvas.tsx`
+  +14/−2, `app-store.ts` +11). The extracted `app.asar` confirms both: `!settingsOpen` ×2,
+  `Expand sidebar` ×6, `Collapse sidebar` ×6. Anyone testing this build sees the sidebar rail too,
+  even though the `0.1.0` test sheet has no item for it.
 - **The payload was inspected, not launched.** Extracting the installer with 7-Zip shows
   `Astra.exe` FileVersion `0.1.1` and `resources/app.asar` (2,485,831 bytes) containing
   `!settingsOpen`; the string `0.1.0` is absent. No install or run of this build is recorded, and
   none was attempted here — Smart App Control on the owner's machine blocks unsigned executables,
   which is also why the installer was built on CI instead of locally. An install on some other
   machine would not be visible to this project, so absence of a report is all the evidence there is.
+  As of 2026-11-17 the zip has been handed to testers (owner's report) and testing is in progress;
+  no verdict is recorded here yet.
 - **`npm run make` now ends with `--publish never`.** On a tagged commit electron-builder 26
   auto-publishes, and without `GH_TOKEN` it aborted after building the installer and blockmap; the
   workflow publishes with `gh release create` itself, and v27 makes this the default anyway.
