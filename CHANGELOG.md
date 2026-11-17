@@ -30,9 +30,10 @@ recorded below is what the 0.1.1 installer contains.
   `v0.1.1` as `Astra.Setup.0.1.1.exe` with `SHA256SUMS.txt`.
 - **The payload was inspected, not launched.** Extracting the installer with 7-Zip shows
   `Astra.exe` FileVersion `0.1.1` and `resources/app.asar` (2,485,831 bytes) containing
-  `!settingsOpen`; the string `0.1.0` is absent. Nobody has installed or run this build yet — Smart
-  App Control on the owner's machine blocks unsigned executables, which is also why the installer was
-  built on CI instead of locally.
+  `!settingsOpen`; the string `0.1.0` is absent. No install or run of this build is recorded, and
+  none was attempted here — Smart App Control on the owner's machine blocks unsigned executables,
+  which is also why the installer was built on CI instead of locally. An install on some other
+  machine would not be visible to this project, so absence of a report is all the evidence there is.
 - **`npm run make` now ends with `--publish never`.** On a tagged commit electron-builder 26
   auto-publishes, and without `GH_TOKEN` it aborted after building the installer and blockmap; the
   workflow publishes with `gh release create` itself, and v27 makes this the default anyway.

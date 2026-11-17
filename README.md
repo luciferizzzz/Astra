@@ -38,11 +38,13 @@ The gates below were run on Windows at commit `0b7990a`/`bcd0a1b` (0.1.1 tree):
 | `npm run make` | **fails on the owner's machine** — `⨯ spawn UNKNOWN`; Smart App Control blocks the unsigned installer stub electron-builder must run |
 | installer | `Astra Setup 0.1.1.exe` built by GitHub Actions (`.github/workflows/release.yml`, tag `v0.1.1`) and published as a GitHub Release with `SHA256SUMS.txt` |
 
-**The 0.1.1 installer has not been installed or launched.** Its contents were inspected
+**No install or launch of the 0.1.1 installer is recorded.** Only its contents were inspected
 (extracted with 7-Zip: `Astra.exe` FileVersion `0.1.1`, `resources/app.asar` containing
-`!settingsOpen`) but no install cycle was run, because Smart App Control on the owner's machine
-refuses unsigned executables. The last verified install cycle — silent install → boots with **0
-outbound TCP connections** → silent uninstall, residue removed — was build `0.1.0` (2026-11-02).
+`!settingsOpen`). No install cycle was run here: Smart App Control on the owner's machine refuses
+unsigned executables. Nothing in this repository observes other machines, so an install elsewhere
+would not show up — there is simply no report of one. The last verified install cycle — silent
+install → boots with **0 outbound TCP connections** → silent uninstall, residue removed — was build
+`0.1.0` (2026-11-02).
 
 
 ---
