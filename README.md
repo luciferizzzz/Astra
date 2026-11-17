@@ -36,7 +36,7 @@ The gates below were run on Windows at commit `0b7990a`/`bcd0a1b` (0.1.1 tree):
 | `npm run test:e2e` | 31 passing against the real Electron shell |
 | `npm run dev` | renders cleanly (required for every slice to be called done) |
 | `npm run make` | **fails on the owner's machine** — `⨯ spawn UNKNOWN`; Smart App Control blocks the unsigned installer stub electron-builder must run |
-| installer | `Astra Setup 0.1.1.exe` built by GitHub Actions (`.github/workflows/release.yml`, tag `v0.1.1`) and published as a GitHub Release with `SHA256SUMS.txt` |
+| installer | `Astra Setup 0.1.1.exe` built by GitHub Actions (`.github/workflows/release.yml`, tag `v0.1.1`). The GitHub Release was created, briefly published (2026-11-17 00:09–00:28Z) and then **deleted** — this build is internal-test only. The artifact is now distributed as a zip, not through GitHub. |
 
 **No install or launch of the 0.1.1 installer is recorded.** Only its contents were inspected
 (extracted with 7-Zip: `Astra.exe` FileVersion `0.1.1`, `resources/app.asar` containing

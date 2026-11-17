@@ -6,9 +6,10 @@ versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > **No published release yet.** `0.1.0` was an internal build (2 Nov) with no tag.
 > `0.1.1` is the first tagged, versioned build: the Release workflow builds it on
-> every `v*` tag and attaches it to a **draft** GitHub release, which a human
-> still has to publish. The project vault carries the full narrative changelog;
-> this file is its repo-side mirror.
+> every `v*` tag and attaches it to a **draft** GitHub release. The v0.1.1 draft was
+> published by mistake, then deleted the same day (2026-11-17 00:09–00:28Z) — it is an
+> internal test build and ships as a zip, not through GitHub. The project vault carries
+> the full narrative changelog; this file is its repo-side mirror.
 
 ## [Unreleased]
 
@@ -26,8 +27,9 @@ recorded below is what the 0.1.1 installer contains.
   2 Nov installer without inspecting file dates.
 - **Installer: `Astra Setup 0.1.1.exe`** — 112,210,485 bytes, SHA256
   `929C1541C6697E4250853B52F2366EC20CF62B3DE606593D9BCD701CB4CB0DDE`, built by
-  `.github/workflows/release.yml` on tag `v0.1.1` (`5f5f539`) and published as the GitHub Release
-  `v0.1.1` as `Astra.Setup.0.1.1.exe` with `SHA256SUMS.txt`.
+  `.github/workflows/release.yml` on tag `v0.1.1` (`5f5f539`). The release was created as a draft,
+  briefly published (2026-11-17 00:09–00:28Z) and then **deleted** because the build is internal
+  test only; the tag remains, the artifact ships as a zip with `SHA256SUMS.txt`.
 - **The payload was inspected, not launched.** Extracting the installer with 7-Zip shows
   `Astra.exe` FileVersion `0.1.1` and `resources/app.asar` (2,485,831 bytes) containing
   `!settingsOpen`; the string `0.1.0` is absent. No install or run of this build is recorded, and
@@ -214,7 +216,7 @@ Gates: typecheck clean · vitest 283/283 · Playwright 19/19 · production build
 
 - `electron-builder.yml` unchanged (NSIS, `oneClick: false`, per-user, `npmRebuild: false`) —
   the slice was build + verify + document only. Installer artifacts stay out of Git
-  (distribution is via GitHub Release).
+  (distribution is a zip for internal testers; the GitHub Release path is not used for 0.1.x).
 - Acceptance "external changes detected" honestly remains half: manual confirmation + write
   conflict resolution belong to Phase 3.
 
