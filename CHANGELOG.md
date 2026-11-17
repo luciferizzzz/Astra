@@ -26,7 +26,7 @@ recorded below is what the 0.1.1 installer contains.
   2 Nov installer without inspecting file dates.
 - **Installer: `Astra Setup 0.1.1.exe`** — 112,210,485 bytes, SHA256
   `929C1541C6697E4250853B52F2366EC20CF62B3DE606593D9BCD701CB4CB0DDE`, built by
-  `.github/workflows/release.yml` on tag `v0.1.1` (`5f5f539`) and attached to the **draft** release
+  `.github/workflows/release.yml` on tag `v0.1.1` (`5f5f539`) and published as the GitHub Release
   `v0.1.1` as `Astra.Setup.0.1.1.exe` with `SHA256SUMS.txt`.
 - **The payload was inspected, not launched.** Extracting the installer with 7-Zip shows
   `Astra.exe` FileVersion `0.1.1` and `resources/app.asar` (2,485,831 bytes) containing
